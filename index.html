@@ -240,7 +240,7 @@
 <div class="wrap">
 
   <div class="setup-banner" id="setupBanner">
-    <b>⚠ Firebase not configured yet.</b> This dashboard needs a free Firebase project to sync data live across everyone (all warehouses, NKAM, and Sales Director). Open this file in a text editor, find the <code>firebaseConfig</code> object near the top of the <code>&lt;script type="module"&gt;</code> block, and paste in your project's config keys. Until then the app runs in local-only mode — your entries stay on this device and won't be seen by anyone else.
+    <b>⚠ Firebase not configured yet.</b> This dashboard needs a free Firebase project to sync data live across everyone (all warehouses, Processing Team, NKAM, and Sales Director). Open this file in a text editor, find the <code>firebaseConfig</code> object near the top of the <code>&lt;script type="module"&gt;</code> block, and paste in your project's config keys. Until then the app runs in local-only mode — your entries stay on this device and won't be seen by anyone else.
   </div>
 
   <div class="head">
@@ -258,15 +258,19 @@
   </div>
 
   <div class="rules-strip">
-    <div class="rule-chip self"><b>Up to ₹2,00,000</b>You can update this directly in the system — no approval needed.</div>
-    <div class="rule-chip cam"><b>₹2,00,001 – ₹3,00,000</b>Requires NKAM approval before updating.</div>
-    <div class="rule-chip sir"><b>Above ₹3,00,000</b>Requires Sales Director's approval before updating.</div>
+    <div class="rule-chip self"><b>Up to ₹2,00,000</b>Needs Processing Team approval, then you can update directly in the system.</div>
+    <div class="rule-chip cam"><b>₹2,00,001 – ₹3,00,000</b>Needs Processing Team approval, then NKAM approval before updating.</div>
+    <div class="rule-chip sir"><b>Above ₹3,00,000</b>Needs Processing Team approval, then Sales Director's approval before updating.</div>
   </div>
 
   <div class="tabs">
     <div class="tab active" data-tab="entry" id="tabEntry">
       Entry
       <span class="sub">Raise a credit limit request</span>
+    </div>
+    <div class="tab" data-tab="proc" id="tabProc">
+      Processing Team <span class="lock-icon">🔒</span>
+      <span class="sub">All requests — first approval</span>
     </div>
     <div class="tab" data-tab="cam" id="tabCam">
       NKAM Approval <span class="lock-icon">🔒</span>
@@ -336,11 +340,16 @@
       <div class="filters">
         <select id="entryFilterStatus">
           <option value="all">All status</option>
+          <option value="Pending-Processing">Pending (Processing Team)</option>
+          <option value="Processing-Rejected">Rejected by Processing Team</option>
           <option value="Self-Update">Self-Update (not yet updated)</option>
-          <option value="Pending">Pending</option>
+          <option value="Pending">Pending (NKAM / Sales Director)</option>
           <option value="Approved">Approved (not yet updated)</option>
           <option value="Rejected">Rejected</option>
           <option value="Updated">Updated in system</option>
+        </select>
+        <select id="entryFilterCfa">
+          <option value="all">All CFA</option>
         </select>
         <div class="spacer"></div>
         <button class="btn btn-ghost btn-small" id="btnDownload">⬇ Download data (CSV)</button>
@@ -351,12 +360,52 @@
             <tr>
               <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
               <th class="num">Limit Now</th><th class="num">Outstanding</th>
-              <th class="num">Req. Add. Credit</th><th>Level</th><th>Status</th><th>Remark</th><th>Action</th>
+              <th class="num">Req. Add. Credit</th><th class="num">Req. Add. Invoice</th><th>Level</th><th>Status</th><th>Remark</th><th>Action</th>
             </tr>
           </thead>
           <tbody id="entryTableBody"></tbody>
         </table>
         <div class="empty" id="entryEmpty" style="display:none;">No requests yet. Fill the form above to raise one.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROCESSING TEAM VIEW -->
+  <div id="viewProc" style="display:none;">
+    <div class="section-title">Processing Team pending approvals <span class="count" id="procPendingCount"></span></div>
+    <div class="hint">Every new request lands here first, regardless of amount.</div>
+    <div class="panel">
+      <div class="filters">
+        <input class="search" id="procSearch" placeholder="Search customer / cust code…" />
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
+              <th class="num">Limit Now</th><th class="num">Outstanding</th>
+              <th class="num">Req. Add. Credit</th><th>Next level</th><th>Warehouse Remark</th><th>Decision</th>
+            </tr>
+          </thead>
+          <tbody id="procTableBody"></tbody>
+        </table>
+        <div class="empty" id="procEmpty" style="display:none;">No pending requests for Processing Team. All caught up.</div>
+      </div>
+    </div>
+
+    <div class="section-title">Processing Team decision history <span class="count" id="procHistCount"></span></div>
+    <div class="panel">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
+              <th class="num">Req. Add. Credit</th><th>Next level</th><th>Status</th><th>Processing Remark</th><th>Decided</th>
+            </tr>
+          </thead>
+          <tbody id="procHistBody"></tbody>
+        </table>
+        <div class="empty" id="procHistEmpty" style="display:none;">No decisions yet.</div>
       </div>
     </div>
   </div>
@@ -488,9 +537,11 @@ const COLLECTION_NAME = 'credit_requests';
 const SELF_LIMIT = 200000;   // <= this: self-update, no approval needed
 const CAM_LIMIT  = 300000;   // <= this (and > SELF_LIMIT): NKAM approval; above this: Sales Director approval
 
-// ---- PIN locks. Change these to whatever NKAM / Sales Director want their PIN to be. ----
+// ---- PIN locks. Change these to whatever Processing Team / NKAM / Sales Director want their PIN to be. ----
+const PROC_PIN = '1122';
 const CAM_PIN = '2580';
 const SIR_PIN = '1947';
+let procUnlocked = false;
 let camUnlocked = false;
 let sirUnlocked = false;
 
@@ -626,7 +677,9 @@ function collectForm(){
     reqinv: document.getElementById('f_reqinv').value,
     whRemark: document.getElementById('f_remarks').value.trim(),
     tier: tier,
-    status: tier === 'self' ? 'Self-Update' : 'Pending',
+    status: 'Pending-Processing',
+    procRemark: '',
+    procDecidedAt: null,
     approverRemark: '',
     createdAt: new Date().toISOString(),
     decidedAt: null,
@@ -658,11 +711,11 @@ function updateTierPreview(){
   box.classList.remove('self','cam','sir');
   box.classList.add(tier);
   if(tier === 'self'){
-    box.textContent = '✓ ' + fmtMoney(val) + ' is within your self-update limit — no approval needed, update directly in system.';
+    box.textContent = '→ ' + fmtMoney(val) + ' needs Processing Team approval — then you can update directly in system, no NKAM / Sales Director approval needed.';
   } else if(tier === 'cam'){
-    box.textContent = '→ ' + fmtMoney(val) + ' needs NKAM approval before you update the system.';
+    box.textContent = '→ ' + fmtMoney(val) + ' needs Processing Team approval, then NKAM approval before you update the system.';
   } else {
-    box.textContent = '→ ' + fmtMoney(val) + ' needs Sales Director\'s approval before you update the system.';
+    box.textContent = '→ ' + fmtMoney(val) + ' needs Processing Team approval, then Sales Director\'s approval before you update the system.';
   }
 }
 document.getElementById('f_reqamt').addEventListener('input', updateTierPreview);
@@ -675,13 +728,7 @@ document.getElementById('btnSubmit').addEventListener('click', async ()=>{
   btn.disabled = true;
   try{
     await saveRequest(req);
-    if(req.tier === 'self'){
-      showToast(fmtMoney(req.reqamt) + ' is within the self-update range — no approval needed.');
-    } else if(req.tier === 'cam'){
-      showToast('Request sent to NKAM for approval.');
-    } else {
-      showToast('Request sent to Sales Director for approval.');
-    }
+    showToast('Request sent to Processing Team for approval.');
     clearForm();
   }catch(e){
     console.error(e);
@@ -693,14 +740,16 @@ document.getElementById('btnSubmit').addEventListener('click', async ()=>{
 document.getElementById('btnClear').addEventListener('click', clearForm);
 
 function renderCounts(){
-  document.getElementById('cntPending').textContent = requests.filter(r=>r.status==='Pending').length;
+  document.getElementById('cntPending').textContent = requests.filter(r=>r.status==='Pending' || r.status==='Pending-Processing').length;
   document.getElementById('cntApproved').textContent = requests.filter(r=>r.status==='Approved').length;
-  document.getElementById('cntRejected').textContent = requests.filter(r=>r.status==='Rejected').length;
+  document.getElementById('cntRejected').textContent = requests.filter(r=>r.status==='Rejected' || r.status==='Processing-Rejected').length;
   document.getElementById('cntUpdated').textContent = requests.filter(r=>r.status==='Updated').length;
 }
 
 function statusPill(status){
   const map = {
+    'Pending-Processing':'st-pending',
+    'Processing-Rejected':'st-rejected',
     'Pending':'st-pending',
     'Approved':'st-approved',
     'Rejected':'st-rejected',
@@ -710,10 +759,23 @@ function statusPill(status){
   return '<span class="status-pill ' + (map[status]||'st-self') + '">' + status + '</span>';
 }
 
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function populateCfaFilter(){
+  const select = document.getElementById('entryFilterCfa');
+  const current = select.value;
+  const cfas = Array.from(new Set(requests.map(r => r.cfa).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+  select.innerHTML = '<option value="all">All CFA</option>' + cfas.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('');
+  select.value = cfas.includes(current) ? current : 'all';
+}
 function renderEntryTable(){
+  populateCfaFilter();
   const filter = document.getElementById('entryFilterStatus').value;
+  const cfaFilter = document.getElementById('entryFilterCfa').value;
   let list = requests.slice();
   if(filter !== 'all') list = list.filter(r => r.status === filter);
+  if(cfaFilter !== 'all') list = list.filter(r => r.cfa === cfaFilter);
   document.getElementById('allCount').textContent = '(' + list.length + ')';
   const body = document.getElementById('entryTableBody');
   body.innerHTML = '';
@@ -726,15 +788,16 @@ function renderEntryTable(){
       : (r.status === 'Updated' ? ('Updated ' + fmtDate(r.updatedAt)) : '—');
     tr.innerHTML =
       '<td>' + fmtDate(r.createdAt) + '</td>' +
-      '<td>' + r.cfa + '</td>' +
-      '<td>' + r.custcd + '</td>' +
-      '<td>' + r.custname + '</td>' +
+      '<td>' + esc(r.cfa) + '</td>' +
+      '<td>' + esc(r.custcd) + '</td>' +
+      '<td>' + esc(r.custname) + '</td>' +
       '<td class="num">' + fmtMoney(r.limitnow) + '</td>' +
       '<td class="num">' + fmtMoney(r.outstanding) + '</td>' +
       '<td class="num">' + fmtMoney(r.reqamt) + '</td>' +
+      '<td class="num">' + esc(r.reqinv || '—') + '</td>' +
       '<td>' + levelTag(r.tier) + '</td>' +
       '<td>' + statusPill(r.status) + '</td>' +
-      '<td>' + (r.approverRemark || r.whRemark || '—') + '</td>' +
+      '<td>' + esc(r.approverRemark || r.procRemark || r.whRemark || '—') + '</td>' +
       '<td>' + actionCell + '</td>';
     body.appendChild(tr);
   });
@@ -765,11 +828,11 @@ function csvEscape(val){
 function downloadCSV(){
   const headers = ['Date','CFA','Cust Code','Customer','System Credit Days','Agreement Credit Days',
     'Limit Now','Outstanding','Required Additional Credit','Required Additional Invoice',
-    'Level','Status','Warehouse Remark','Approver Remark','Decided At','Updated At'];
+    'Level','Status','Warehouse Remark','Processing Remark','Processing Decided At','Approver Remark','Decided At','Updated At'];
   const rows = requests.map(r => [
     fmtDate(r.createdAt), r.cfa, r.custcd, r.custname, r.sysdays, r.agrdays,
     r.limitnow, r.outstanding, r.reqamt, r.reqinv,
-    r.tier, r.status, r.whRemark, r.approverRemark,
+    r.tier, r.status, r.whRemark, r.procRemark, (r.procDecidedAt ? fmtDate(r.procDecidedAt) : ''), r.approverRemark,
     r.decidedAt ? fmtDate(r.decidedAt) : '', r.updatedAt ? fmtDate(r.updatedAt) : ''
   ]);
   const csvLines = [headers.map(csvEscape).join(',')].concat(rows.map(row => row.map(csvEscape).join(',')));
@@ -862,6 +925,84 @@ function renderApprovalQueue(tier, searchId, pendingBodyId, pendingCountId, pend
   });
 }
 
+function renderProcTable(){
+  const search = document.getElementById('procSearch').value.trim().toLowerCase();
+  let pending = requests.filter(r => r.status === 'Pending-Processing');
+  if(search) pending = pending.filter(r =>
+    r.custname.toLowerCase().includes(search) || r.custcd.toLowerCase().includes(search));
+
+  document.getElementById('procPendingCount').textContent = '(' + pending.length + ')';
+  const body = document.getElementById('procTableBody');
+  body.innerHTML = '';
+  document.getElementById('procEmpty').style.display = pending.length ? 'none' : 'block';
+
+  pending.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + fmtDate(r.createdAt) + '</td>' +
+      '<td>' + esc(r.cfa) + '</td>' +
+      '<td>' + esc(r.custcd) + '</td>' +
+      '<td>' + esc(r.custname) + '</td>' +
+      '<td class="num">' + fmtMoney(r.limitnow) + '</td>' +
+      '<td class="num">' + fmtMoney(r.outstanding) + '</td>' +
+      '<td class="num">' + fmtMoney(r.reqamt) + '</td>' +
+      '<td>' + levelTag(r.tier) + '</td>' +
+      '<td>' + esc(r.whRemark || '—') + '</td>' +
+      '<td>' +
+        '<div class="row-actions"><input class="remark-input" placeholder="Remark (optional)" id="procremark_' + r.id + '" /></div>' +
+        '<div class="row-actions" style="margin-top:6px;">' +
+          '<button class="btn btn-approve" data-id="' + r.id + '" data-action="approve">Approve</button>' +
+          '<button class="btn btn-reject" data-id="' + r.id + '" data-action="reject">Reject</button>' +
+        '</div>' +
+      '</td>';
+    body.appendChild(tr);
+  });
+
+  body.querySelectorAll('button[data-action]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.getAttribute('data-id');
+      const action = btn.getAttribute('data-action');
+      const remarkInput = document.getElementById('procremark_' + id);
+      const remark = remarkInput ? remarkInput.value.trim() : '';
+      const req = requests.find(r => r.id === id);
+      if(!req) return;
+      const nextStatus = action === 'reject' ? 'Processing-Rejected' : (req.tier === 'self' ? 'Self-Update' : 'Pending');
+      try{
+        await updateRequest(id, {
+          status: nextStatus,
+          procRemark: remark,
+          procDecidedAt: new Date().toISOString()
+        });
+        showToast(req.custname + ' — ' + (action === 'reject' ? 'Rejected by Processing Team.' : 'Approved by Processing Team, moved to next level.'));
+      }catch(e){
+        console.error(e);
+        showToast('Could not save decision — check your connection.');
+      }
+    });
+  });
+
+  const hist = requests.filter(r => r.procDecidedAt)
+    .sort((a,b)=> new Date(b.procDecidedAt || 0) - new Date(a.procDecidedAt || 0));
+  document.getElementById('procHistCount').textContent = '(' + hist.length + ')';
+  const histBody = document.getElementById('procHistBody');
+  histBody.innerHTML = '';
+  document.getElementById('procHistEmpty').style.display = hist.length ? 'none' : 'block';
+  hist.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + fmtDate(r.createdAt) + '</td>' +
+      '<td>' + esc(r.cfa) + '</td>' +
+      '<td>' + esc(r.custcd) + '</td>' +
+      '<td>' + esc(r.custname) + '</td>' +
+      '<td class="num">' + fmtMoney(r.reqamt) + '</td>' +
+      '<td>' + levelTag(r.tier) + '</td>' +
+      '<td>' + statusPill(r.status) + '</td>' +
+      '<td>' + esc(r.procRemark || '—') + '</td>' +
+      '<td>' + (r.procDecidedAt ? fmtDate(r.procDecidedAt) : '—') + '</td>';
+    histBody.appendChild(tr);
+  });
+}
+
 function renderCamTable(){
   renderApprovalQueue('cam', 'camSearch', 'camTableBody', 'camPendingCount', 'camEmpty', 'camHistBody', 'camHistCount', 'camHistEmpty');
 }
@@ -872,19 +1013,24 @@ function renderSirTable(){
 function renderAll(){
   renderCounts();
   renderEntryTable();
+  renderProcTable();
   renderCamTable();
   renderSirTable();
 }
 
 document.getElementById('entryFilterStatus').addEventListener('change', renderEntryTable);
+document.getElementById('entryFilterCfa').addEventListener('change', renderEntryTable);
+document.getElementById('procSearch').addEventListener('input', renderProcTable);
 document.getElementById('camSearch').addEventListener('input', renderCamTable);
 document.getElementById('sirSearch').addEventListener('input', renderSirTable);
 
 function switchTab(tab){
   document.getElementById('tabEntry').classList.toggle('active', tab==='entry');
+  document.getElementById('tabProc').classList.toggle('active', tab==='proc');
   document.getElementById('tabCam').classList.toggle('active', tab==='cam');
   document.getElementById('tabSir').classList.toggle('active', tab==='sir');
   document.getElementById('viewEntry').style.display = tab==='entry' ? 'block' : 'none';
+  document.getElementById('viewProc').style.display = tab==='proc' ? 'block' : 'none';
   document.getElementById('viewCam').style.display = tab==='cam' ? 'block' : 'none';
   document.getElementById('viewSir').style.display = tab==='sir' ? 'block' : 'none';
 }
@@ -895,13 +1041,16 @@ const pinInput = document.getElementById('pinInput');
 const pinError = document.getElementById('pinError');
 const pinModalTitle = document.getElementById('pinModalTitle');
 const pinModalText = document.getElementById('pinModalText');
-let pendingUnlockTarget = null; // 'cam' or 'sir'
+let pendingUnlockTarget = null; // 'proc', 'cam' or 'sir'
 
 function openPinModal(target){
   pendingUnlockTarget = target;
   pinInput.value = '';
   pinError.textContent = '';
-  if(target === 'cam'){
+  if(target === 'proc'){
+    pinModalTitle.textContent = "Processing Team's PIN required";
+    pinModalText.textContent = 'Only the Processing Team can approve or reject these requests. Enter the PIN to continue.';
+  } else if(target === 'cam'){
     pinModalTitle.textContent = "NKAM's PIN required";
     pinModalText.textContent = 'Only NKAM can approve or reject these requests. Enter the PIN to continue.';
   } else {
@@ -916,8 +1065,9 @@ function closePinModal(){
   pendingUnlockTarget = null;
 }
 function tryUnlock(){
-  const correctPin = pendingUnlockTarget === 'cam' ? CAM_PIN : SIR_PIN;
+  const correctPin = pendingUnlockTarget === 'proc' ? PROC_PIN : (pendingUnlockTarget === 'cam' ? CAM_PIN : SIR_PIN);
   if(pinInput.value.trim() === correctPin){
+    if(pendingUnlockTarget === 'proc') procUnlocked = true;
     if(pendingUnlockTarget === 'cam') camUnlocked = true;
     if(pendingUnlockTarget === 'sir') sirUnlocked = true;
     const target = pendingUnlockTarget;
@@ -936,6 +1086,9 @@ pinOverlay.addEventListener('click', (e)=>{ if(e.target === pinOverlay) closePin
 
 document.getElementById('tabEntry').addEventListener('click', ()=>{
   switchTab('entry');
+});
+document.getElementById('tabProc').addEventListener('click', ()=>{
+  if(procUnlocked){ switchTab('proc'); } else { openPinModal('proc'); }
 });
 document.getElementById('tabCam').addEventListener('click', ()=>{
   if(camUnlocked){ switchTab('cam'); } else { openPinModal('cam'); }
