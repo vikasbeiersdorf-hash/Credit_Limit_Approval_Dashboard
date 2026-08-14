@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Credit Limit Approval Dashboard</title>
+<style>
+  :root{
+    --ink:#1c2430;
+    --ink-soft:#4b5666;
+    --paper:#f3f0e8;
+    --panel:#ffffff;
+    --line:#dcd6c6;
+    --navy:#233348;
+    --navy-deep:#182333;
+    --amber:#c9862a;
+    --amber-soft:#f3e3c8;
+    --green:#3a7350;
+    --green-soft:#dcecdf;
+    --red:#a13b3b;
+    --red-soft:#f3dcdc;
+    --blue:#2c5f8a;
+    --blue-soft:#dbe8f2;
+    --purple:#5b4b8a;
+    --purple-soft:#e6e1f2;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --serif: 'Source Serif 4', Georgia, serif;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+  @font-face{ font-family:'Source Serif 4'; src:local('Georgia'); }
+
+  .wrap{ max-width:1220px; margin:0 auto; padding:28px 20px 60px; }
+
+  /* HEADER */
+  .head{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    border-bottom:2px solid var(--navy);
+    padding-bottom:16px; margin-bottom:10px;
+    flex-wrap:wrap; gap:14px;
+  }
+  .head-left .eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--amber); font-weight:600;
+  }
+  .head-left h1{
+    font-family:var(--serif); font-weight:600; font-size:30px; margin:4px 0 0; color:var(--navy-deep);
+  }
+  .head-right{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .badge-count{
+    font-family:var(--mono); font-size:12px; padding:6px 12px; border-radius:999px;
+    border:1px solid var(--line); background:var(--panel); color:var(--ink-soft);
+  }
+  .badge-count b{ color:var(--navy); }
+  .conn-status{
+    font-family:var(--mono); font-size:11px; padding:6px 12px; border-radius:999px;
+    display:flex; align-items:center; gap:6px;
+  }
+  .conn-dot{ width:7px; height:7px; border-radius:50%; background:var(--ink-soft); }
+  .conn-status.online .conn-dot{ background:var(--green); }
+  .conn-status.offline .conn-dot{ background:var(--red); }
+  .conn-status.online{ color:var(--green); background:var(--green-soft); }
+  .conn-status.offline{ color:var(--red); background:var(--red-soft); }
+
+  /* THRESHOLD STRIP */
+  .rules-strip{
+    display:flex; gap:10px; margin:14px 0 22px; flex-wrap:wrap;
+  }
+  .rule-chip{
+    flex:1; min-width:220px; background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--ink-soft);
+    padding:10px 14px; font-size:12.5px; color:var(--ink-soft);
+  }
+  .rule-chip b{ display:block; font-family:var(--serif); font-size:15px; color:var(--navy-deep); margin-bottom:2px; }
+  .rule-chip.self{ border-left-color:var(--green); }
+  .rule-chip.cam{ border-left-color:var(--blue); }
+  .rule-chip.sir{ border-left-color:var(--red); }
+
+  /* ROLE TABS */
+  .tabs{ display:flex; gap:8px; margin-bottom:22px; flex-wrap:wrap; }
+  .tab{
+    flex:1; min-width:150px; text-align:center; padding:14px 10px; background:var(--panel);
+    border:1px solid var(--line); border-bottom:3px solid transparent;
+    cursor:pointer; font-weight:600; font-size:14px; color:var(--ink-soft);
+    transition:all .15s ease;
+  }
+  .tab .sub{ display:block; font-weight:400; font-size:11.5px; color:var(--ink-soft); margin-top:2px; font-family:var(--mono);}
+  .tab.active{ border-bottom-color:var(--amber); color:var(--navy-deep); background:#fffdf8; }
+  .tab:hover{ color:var(--navy-deep); }
+
+  .panel{ background:var(--panel); border:1px solid var(--line); }
+
+  /* FORM */
+  .form-title{
+    font-family:var(--serif); font-size:19px; padding:16px 20px; border-bottom:1px solid var(--line);
+    color:var(--navy-deep); display:flex; align-items:center; justify-content:space-between;
+  }
+  .form-grid{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr));
+    gap:16px; padding:20px;
+  }
+  .field label{
+    display:block; font-size:11px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--ink-soft); margin-bottom:6px; font-weight:600;
+  }
+  .field input, .field select, .field textarea{
+    width:100%; padding:10px 11px; border:1px solid var(--line); background:#fdfcf9;
+    font-family:var(--sans); font-size:14px; color:var(--ink); border-radius:2px;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus{
+    outline:none; border-color:var(--navy);
+  }
+  .field.wide{ grid-column: span 2; }
+  .tier-preview{
+    margin:0 20px 18px; padding:12px 14px; border-radius:2px; font-size:13px; font-family:var(--mono);
+    display:none; align-items:center; gap:8px;
+  }
+  .tier-preview.show{ display:flex; }
+  .tier-preview.self{ background:var(--green-soft); color:var(--green); }
+  .tier-preview.cam{ background:var(--blue-soft); color:var(--blue); }
+  .tier-preview.sir{ background:var(--red-soft); color:var(--red); }
+  .form-actions{ padding:4px 20px 22px; display:flex; justify-content:flex-end; gap:10px;}
+  .btn{
+    font-family:var(--sans); font-weight:600; font-size:13.5px; padding:11px 22px;
+    border:none; cursor:pointer; border-radius:2px; letter-spacing:.01em;
+  }
+  .btn:disabled{ opacity:.5; cursor:not-allowed; }
+  .btn-primary{ background:var(--navy); color:#fff; }
+  .btn-primary:hover{ background:var(--navy-deep); }
+  .btn-ghost{ background:transparent; color:var(--ink-soft); border:1px solid var(--line); }
+  .btn-approve{ background:var(--green); color:#fff; }
+  .btn-approve:hover{ background:#2c5a3f; }
+  .btn-reject{ background:var(--red); color:#fff; }
+  .btn-reject:hover{ background:#832f2f; }
+  .btn-mark{ background:var(--purple); color:#fff; }
+  .btn-mark:hover{ background:#463b6e; }
+  .btn-small{ padding:6px 12px; font-size:12px; }
+
+  /* TABLE */
+  .table-wrap{ overflow-x:auto; margin-top:24px; }
+  table{ width:100%; border-collapse:collapse; background:var(--panel); font-size:13px; }
+  thead th{
+    text-align:left; font-family:var(--mono); font-size:10.5px; text-transform:uppercase;
+    letter-spacing:.06em; color:var(--ink-soft); padding:10px 12px; border-bottom:2px solid var(--navy);
+    white-space:nowrap; background:#eae6d8;
+  }
+  tbody td{
+    padding:11px 12px; border-bottom:1px solid var(--line); vertical-align:middle; white-space:nowrap;
+  }
+  tbody tr:hover{ background:#faf8f2; }
+  .num{ font-family:var(--mono); text-align:right; }
+  .status-pill{
+    font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.04em;
+    padding:4px 9px; border-radius:999px; font-weight:600; display:inline-block;
+  }
+  .st-pending{ background:var(--amber-soft); color:#8a5c15; }
+  .st-approved{ background:var(--green-soft); color:var(--green); }
+  .st-rejected{ background:var(--red-soft); color:var(--red); }
+  .st-self{ background:#eef1f5; color:var(--navy); }
+  .st-updated{ background:var(--purple-soft); color:var(--purple); }
+  .level-tag{ font-family:var(--mono); font-size:10.5px; text-transform:uppercase; padding:3px 8px; border-radius:3px; font-weight:600; }
+  .level-self{ background:var(--green-soft); color:var(--green); }
+  .level-cam{ background:var(--blue-soft); color:var(--blue); }
+  .level-sir{ background:var(--red-soft); color:var(--red); }
+  .row-actions{ display:flex; gap:6px; }
+  .row-actions button{ padding:6px 12px; font-size:12px; }
+  .remark-input{
+    width:150px; padding:6px 8px; font-size:12px; border:1px solid var(--line); border-radius:2px;
+  }
+  .empty{ padding:40px 20px; text-align:center; color:var(--ink-soft); font-family:var(--mono); font-size:13px; }
+
+  .filters{ display:flex; gap:10px; padding:16px 20px 0; flex-wrap:wrap; align-items:center; }
+  .filters select{ padding:8px 10px; border:1px solid var(--line); background:#fdfcf9; font-size:13px; border-radius:2px; }
+  .filters .spacer{ flex:1; }
+  .filters .search{ padding:8px 12px; border:1px solid var(--line); background:#fdfcf9; font-size:13px; min-width:200px; border-radius:2px; }
+
+  .toast{
+    position:fixed; bottom:24px; right:24px; background:var(--navy-deep); color:#fff;
+    padding:13px 20px; font-size:13.5px; border-radius:3px; box-shadow:0 8px 24px rgba(0,0,0,.18);
+    opacity:0; transform:translateY(10px); transition:all .25s ease; pointer-events:none; z-index:50;
+    max-width:320px;
+  }
+  .toast.show{ opacity:1; transform:translateY(0); }
+
+  .section-title{
+    font-family:var(--serif); font-size:19px; margin:26px 0 10px; color:var(--navy-deep);
+    display:flex; align-items:baseline; gap:10px;
+  }
+  .section-title .count{ font-family:var(--mono); font-size:12px; color:var(--ink-soft); font-weight:400;}
+  .hint{ font-size:12px; color:var(--ink-soft); padding:0 20px 14px; }
+
+  .lock-icon{ font-family:var(--mono); font-size:12px; margin-left:4px; }
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(24,35,51,0.55); display:none;
+    align-items:center; justify-content:center; z-index:100; padding:20px;
+  }
+  .modal-overlay.show{ display:flex; }
+  .modal-box{
+    background:var(--panel); width:100%; max-width:340px; border:1px solid var(--line);
+    box-shadow:0 20px 50px rgba(0,0,0,.25);
+  }
+  .modal-head{
+    padding:18px 20px 14px; border-bottom:1px solid var(--line);
+  }
+  .modal-head .eyebrow{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--amber); font-weight:600;
+  }
+  .modal-head h3{ font-family:var(--serif); font-size:19px; margin:4px 0 0; color:var(--navy-deep); }
+  .modal-body{ padding:18px 20px; }
+  .modal-body p{ font-size:13px; color:var(--ink-soft); margin:0 0 12px; }
+  .modal-body input{
+    width:100%; padding:12px 12px; border:1px solid var(--line); background:#fdfcf9;
+    font-family:var(--mono); font-size:18px; letter-spacing:.25em; text-align:center; border-radius:2px;
+  }
+  .modal-error{ color:var(--red); font-size:12px; margin-top:8px; min-height:16px; font-family:var(--mono); }
+  .modal-actions{ padding:0 20px 20px; display:flex; gap:10px; justify-content:flex-end; }
+
+  .setup-banner{
+    background:#2a2118; color:#f3e3c8; border:1px solid #4a3a24; padding:16px 20px; margin-bottom:22px;
+    font-size:13px; line-height:1.6; display:none;
+  }
+  .setup-banner.show{ display:block; }
+  .setup-banner b{ color:#fff; }
+  .setup-banner code{ background:rgba(255,255,255,.12); padding:1px 6px; border-radius:3px; font-family:var(--mono); }
+
+  @media (max-width:640px){
+    .field.wide{ grid-column: span 1; }
+    .head{ flex-direction:column; align-items:flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="setup-banner" id="setupBanner">
+    <b>⚠ Firebase not configured yet.</b> This dashboard needs a free Firebase project to sync data live across everyone (all warehouses, CAM, and Sir). Open this file in a text editor, find the <code>firebaseConfig</code> object near the top of the <code>&lt;script type="module"&gt;</code> block, and paste in your project's config keys. Until then the app runs in local-only mode — your entries stay on this device and won't be seen by anyone else.
+  </div>
+
+  <div class="head">
+    <div class="head-left">
+      <div class="eyebrow">Credit Control · CFA Network</div>
+      <h1>Credit Limit Approval Dashboard</h1>
+    </div>
+    <div class="head-right">
+      <span class="conn-status" id="connStatus"><span class="conn-dot"></span><span id="connText">Connecting…</span></span>
+      <span class="badge-count">Pending <b id="cntPending">0</b></span>
+      <span class="badge-count">Approved <b id="cntApproved">0</b></span>
+      <span class="badge-count">Rejected <b id="cntRejected">0</b></span>
+      <span class="badge-count">Updated in system <b id="cntUpdated">0</b></span>
+    </div>
+  </div>
+
+  <div class="rules-strip">
+    <div class="rule-chip self"><b>Up to ₹2,00,000</b>You can update this directly in the system — no approval needed.</div>
+    <div class="rule-chip cam"><b>₹2,00,001 – ₹3,00,000</b>Requires CAM approval before updating.</div>
+    <div class="rule-chip sir"><b>Above ₹3,00,000</b>Requires Sir's approval before updating.</div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="entry" id="tabEntry">
+      Entry
+      <span class="sub">Raise a credit limit request</span>
+    </div>
+    <div class="tab" data-tab="cam" id="tabCam">
+      CAM Approval <span class="lock-icon">🔒</span>
+      <span class="sub">₹2L – ₹3L requests</span>
+    </div>
+    <div class="tab" data-tab="sir" id="tabSir">
+      Sir Approval <span class="lock-icon">🔒</span>
+      <span class="sub">Above ₹3L requests</span>
+    </div>
+  </div>
+
+  <!-- ENTRY VIEW -->
+  <div id="viewEntry">
+    <div class="panel">
+      <div class="form-title">New Credit Limit Request</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>CFA</label>
+          <input id="f_cfa" placeholder="e.g. MUM" />
+        </div>
+        <div class="field">
+          <label>Cust Code</label>
+          <input id="f_custcd" placeholder="e.g. 5772MU-MUM" />
+        </div>
+        <div class="field wide">
+          <label>Customer Name</label>
+          <input id="f_custname" placeholder="e.g. Flipkart India Pvt. Ltd - Bhiwandi" />
+        </div>
+        <div class="field">
+          <label>System Credit Days</label>
+          <input id="f_sysdays" type="number" placeholder="e.g. 15" />
+        </div>
+        <div class="field">
+          <label>Agreement Credit Days</label>
+          <input id="f_agrdays" type="number" placeholder="e.g. 30" />
+        </div>
+        <div class="field">
+          <label>Limit Now on System (₹)</label>
+          <input id="f_limitnow" type="number" placeholder="e.g. 500000" />
+        </div>
+        <div class="field">
+          <label>Outstanding (₹)</label>
+          <input id="f_outstanding" type="number" placeholder="e.g. 767663" />
+        </div>
+        <div class="field">
+          <label>Required Additional Credit (₹)</label>
+          <input id="f_reqamt" type="number" placeholder="e.g. 380000" />
+        </div>
+        <div class="field">
+          <label>Required Additional Invoice</label>
+          <input id="f_reqinv" type="number" placeholder="e.g. 35" />
+        </div>
+        <div class="field wide">
+          <label>Remarks (optional)</label>
+          <input id="f_remarks" placeholder="Reason for additional credit / urgency" />
+        </div>
+      </div>
+      <div class="tier-preview" id="tierPreview"></div>
+      <div class="form-actions">
+        <button class="btn btn-ghost" id="btnClear">Clear form</button>
+        <button class="btn btn-primary" id="btnSubmit">Submit</button>
+      </div>
+    </div>
+
+    <div class="section-title">All requests <span class="count" id="allCount"></span></div>
+    <div class="panel">
+      <div class="filters">
+        <select id="entryFilterStatus">
+          <option value="all">All status</option>
+          <option value="Self-Update">Self-Update (not yet updated)</option>
+          <option value="Pending">Pending</option>
+          <option value="Approved">Approved (not yet updated)</option>
+          <option value="Rejected">Rejected</option>
+          <option value="Updated">Updated in system</option>
+        </select>
+        <div class="spacer"></div>
+        <button class="btn btn-ghost btn-small" id="btnDownload">⬇ Download data (CSV)</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
+              <th class="num">Limit Now</th><th class="num">Outstanding</th>
+              <th class="num">Req. Add. Credit</th><th>Level</th><th>Status</th><th>Remark</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="entryTableBody"></tbody>
+        </table>
+        <div class="empty" id="entryEmpty" style="display:none;">No requests yet. Fill the form above to raise one.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CAM VIEW -->
+  <div id="viewCam" style="display:none;">
+    <div class="section-title">CAM pending approvals <span class="count" id="camPendingCount"></span></div>
+    <div class="hint">Requests between ₹2,00,001 and ₹3,00,000.</div>
+    <div class="panel">
+      <div class="filters">
+        <input class="search" id="camSearch" placeholder="Search customer / cust code…" />
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
+              <th class="num">Limit Now</th><th class="num">Outstanding</th>
+              <th class="num">Req. Add. Credit</th><th>Warehouse Remark</th><th>Decision</th>
+            </tr>
+          </thead>
+          <tbody id="camTableBody"></tbody>
+        </table>
+        <div class="empty" id="camEmpty" style="display:none;">No pending requests for CAM. All caught up.</div>
+      </div>
+    </div>
+
+    <div class="section-title">CAM decision history <span class="count" id="camHistCount"></span></div>
+    <div class="panel">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
+              <th class="num">Req. Add. Credit</th><th>Status</th><th>CAM Remark</th><th>Decided</th>
+            </tr>
+          </thead>
+          <tbody id="camHistBody"></tbody>
+        </table>
+        <div class="empty" id="camHistEmpty" style="display:none;">No decisions yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIR VIEW -->
+  <div id="viewSir" style="display:none;">
+    <div class="section-title">Sir's pending approvals <span class="count" id="sirPendingCount"></span></div>
+    <div class="hint">Requests above ₹3,00,000.</div>
+    <div class="panel">
+      <div class="filters">
+        <input class="search" id="sirSearch" placeholder="Search customer / cust code…" />
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
+              <th class="num">Limit Now</th><th class="num">Outstanding</th>
+              <th class="num">Req. Add. Credit</th><th>Warehouse Remark</th><th>Decision</th>
+            </tr>
+          </thead>
+          <tbody id="sirTableBody"></tbody>
+        </table>
+        <div class="empty" id="sirEmpty" style="display:none;">No pending requests for Sir. All caught up.</div>
+      </div>
+    </div>
+
+    <div class="section-title">Sir's decision history <span class="count" id="sirHistCount"></span></div>
+    <div class="panel">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
+              <th class="num">Req. Add. Credit</th><th>Status</th><th>Sir's Remark</th><th>Decided</th>
+            </tr>
+          </thead>
+          <tbody id="sirHistBody"></tbody>
+        </table>
+        <div class="empty" id="sirHistEmpty" style="display:none;">No decisions yet.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-overlay" id="pinOverlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="eyebrow">Restricted</div>
+      <h3 id="pinModalTitle">PIN required</h3>
+    </div>
+    <div class="modal-body">
+      <p id="pinModalText">Enter the PIN to continue.</p>
+      <input type="password" id="pinInput" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="off" />
+      <div class="modal-error" id="pinError"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="pinCancel">Cancel</button>
+      <button class="btn btn-primary" id="pinSubmit">Unlock</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+// =====================================================================
+// FIREBASE SETUP — REQUIRED
+// 1. Go to https://console.firebase.google.com -> Add project (free).
+// 2. Inside the project: Build -> Firestore Database -> Create database
+//    (start in test mode is fine to begin with).
+// 3. Project settings (gear icon) -> General -> "Your apps" -> Add app -> Web (</>).
+// 4. Copy the firebaseConfig object it gives you and paste it below,
+//    replacing the placeholder values.
+// =====================================================================
+const firebaseConfig = {
+  apiKey: "PASTE_YOUR_API_KEY",
+  authDomain: "PASTE_YOUR_PROJECT.firebaseapp.com",
+  projectId: "PASTE_YOUR_PROJECT_ID",
+  storageBucket: "PASTE_YOUR_PROJECT.appspot.com",
+  messagingSenderId: "PASTE_YOUR_SENDER_ID",
+  appId: "PASTE_YOUR_APP_ID"
+};
+
+const COLLECTION_NAME = 'credit_requests';
+
+// ---- Approval thresholds (change these three numbers if the policy changes) ----
+const SELF_LIMIT = 200000;   // <= this: self-update, no approval needed
+const CAM_LIMIT  = 300000;   // <= this (and > SELF_LIMIT): CAM approval; above this: Sir approval
+
+// ---- PIN locks. Change these to whatever CAM / Sir want their PIN to be. ----
+const CAM_PIN = '2580';
+const SIR_PIN = '1947';
+let camUnlocked = false;
+let sirUnlocked = false;
+
+let requests = [];
+let db = null;
+let firestoreReady = false;
+
+async function initFirebase(){
+  const isConfigured = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('npm install firebase');
+  const banner = document.getElementById('setupBanner');
+  const connStatus = document.getElementById('connStatus');
+  const connText = document.getElementById('connText');
+
+  if(!isConfigured){
+    banner.classList.add('show');
+    connStatus.className = 'conn-status offline';
+    connText.textContent = 'Local only — Firebase not set up';
+    loadLocalFallback();
+    renderAll();
+    return;
+  }
+
+  try{
+    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+    const { getFirestore, collection, onSnapshot, query, orderBy, doc, setDoc, updateDoc } =
+      await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    firestoreReady = true;
+
+    window.__fs = { collection, onSnapshot, query, orderBy, doc, setDoc, updateDoc };
+
+    const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
+    onSnapshot(q, (snapshot) => {
+      requests = snapshot.docs.map(d => d.data());
+      renderAll();
+      connStatus.className = 'conn-status online';
+      connText.textContent = 'Live — synced';
+    }, (err) => {
+      console.error('Firestore listen error', err);
+      connStatus.className = 'conn-status offline';
+      connText.textContent = 'Connection error';
+      showToast('Could not connect to the live database. Check your Firebase config.');
+    });
+  }catch(err){
+    console.error('Firebase init failed', err);
+    banner.classList.add('show');
+    connStatus.className = 'conn-status offline';
+    connText.textContent = 'Local only — connection failed';
+    loadLocalFallback();
+    renderAll();
+  }
+}
+
+// Local-only fallback so the dashboard is still usable before Firebase is configured
+function loadLocalFallback(){
+  try{
+    const raw = localStorage.getItem('credit_requests_fallback');
+    requests = raw ? JSON.parse(raw) : [];
+  }catch(e){ requests = []; }
+}
+function saveLocalFallback(){
+  try{ localStorage.setItem('credit_requests_fallback', JSON.stringify(requests)); }catch(e){}
+}
+
+async function saveRequest(req){
+  if(firestoreReady){
+    const { doc, setDoc } = window.__fs;
+    await setDoc(doc(db, COLLECTION_NAME, req.id), req);
+  } else {
+    const idx = requests.findIndex(r => r.id === req.id);
+    if(idx >= 0) requests[idx] = req; else requests.unshift(req);
+    saveLocalFallback();
+    renderAll();
+  }
+}
+async function updateRequest(id, patch){
+  if(firestoreReady){
+    const { doc, updateDoc } = window.__fs;
+    await updateDoc(doc(db, COLLECTION_NAME, id), patch);
+  } else {
+    const req = requests.find(r => r.id === id);
+    if(req) Object.assign(req, patch);
+    saveLocalFallback();
+    renderAll();
+  }
+}
+
+function fmtMoney(n){
+  const num = Number(n)||0;
+  return '₹' + num.toLocaleString('en-IN');
+}
+function fmtDate(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) + ' ' +
+         d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
+}
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 3200);
+}
+function uid(){ return 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
+
+function tierFor(amount){
+  const amt = Number(amount) || 0;
+  if(amt <= SELF_LIMIT) return 'self';
+  if(amt <= CAM_LIMIT) return 'cam';
+  return 'sir';
+}
+function levelTag(tier){
+  if(tier === 'self') return '<span class="level-tag level-self">Self</span>';
+  if(tier === 'cam') return '<span class="level-tag level-cam">CAM</span>';
+  return '<span class="level-tag level-sir">Sir</span>';
+}
+
+function collectForm(){
+  const reqamt = document.getElementById('f_reqamt').value;
+  const tier = tierFor(reqamt);
+  return {
+    id: uid(),
+    cfa: document.getElementById('f_cfa').value.trim(),
+    custcd: document.getElementById('f_custcd').value.trim(),
+    custname: document.getElementById('f_custname').value.trim(),
+    sysdays: document.getElementById('f_sysdays').value,
+    agrdays: document.getElementById('f_agrdays').value,
+    limitnow: document.getElementById('f_limitnow').value,
+    outstanding: document.getElementById('f_outstanding').value,
+    reqamt: reqamt,
+    reqinv: document.getElementById('f_reqinv').value,
+    whRemark: document.getElementById('f_remarks').value.trim(),
+    tier: tier,
+    status: tier === 'self' ? 'Self-Update' : 'Pending',
+    approverRemark: '',
+    createdAt: new Date().toISOString(),
+    decidedAt: null,
+    updatedAt: null
+  };
+}
+function clearForm(){
+  ['f_cfa','f_custcd','f_custname','f_sysdays','f_agrdays','f_limitnow','f_outstanding','f_reqamt','f_reqinv','f_remarks']
+    .forEach(id => document.getElementById(id).value = '');
+  updateTierPreview();
+}
+function validate(req){
+  if(!req.cfa) return 'Please enter CFA.';
+  if(!req.custcd) return 'Please enter the customer code.';
+  if(!req.custname) return 'Please enter the customer name.';
+  if(req.reqamt === '' || Number(req.reqamt) <= 0) return 'Please enter a valid required additional credit amount.';
+  return null;
+}
+
+function updateTierPreview(){
+  const box = document.getElementById('tierPreview');
+  const val = document.getElementById('f_reqamt').value;
+  if(val === '' || Number(val) <= 0){
+    box.classList.remove('show','self','cam','sir');
+    return;
+  }
+  const tier = tierFor(val);
+  box.classList.add('show');
+  box.classList.remove('self','cam','sir');
+  box.classList.add(tier);
+  if(tier === 'self'){
+    box.textContent = '✓ ' + fmtMoney(val) + ' is within your self-update limit — no approval needed, update directly in system.';
+  } else if(tier === 'cam'){
+    box.textContent = '→ ' + fmtMoney(val) + ' needs CAM approval before you update the system.';
+  } else {
+    box.textContent = '→ ' + fmtMoney(val) + ' needs Sir\'s approval before you update the system.';
+  }
+}
+document.getElementById('f_reqamt').addEventListener('input', updateTierPreview);
+
+document.getElementById('btnSubmit').addEventListener('click', async ()=>{
+  const req = collectForm();
+  const err = validate(req);
+  if(err){ showToast(err); return; }
+  try{
+    await saveRequest(req);
+    clearForm();
+    if(req.tier === 'self'){
+      showToast(fmtMoney(req.reqamt) + ' is within the self-update range — no approval needed.');
+    } else if(req.tier === 'cam'){
+      showToast('Request sent to CAM for approval.');
+    } else {
+      showToast('Request sent to Sir for approval.');
+    }
+  }catch(e){
+    console.error(e);
+    showToast('Could not submit — check your connection.');
+  }
+});
+document.getElementById('btnClear').addEventListener('click', clearForm);
+
+function renderCounts(){
+  document.getElementById('cntPending').textContent = requests.filter(r=>r.status==='Pending').length;
+  document.getElementById('cntApproved').textContent = requests.filter(r=>r.status==='Approved').length;
+  document.getElementById('cntRejected').textContent = requests.filter(r=>r.status==='Rejected').length;
+  document.getElementById('cntUpdated').textContent = requests.filter(r=>r.status==='Updated').length;
+}
+
+function statusPill(status){
+  const map = {
+    'Pending':'st-pending',
+    'Approved':'st-approved',
+    'Rejected':'st-rejected',
+    'Self-Update':'st-self',
+    'Updated':'st-updated'
+  };
+  return '<span class="status-pill ' + (map[status]||'st-self') + '">' + status + '</span>';
+}
+
+function renderEntryTable(){
+  const filter = document.getElementById('entryFilterStatus').value;
+  let list = requests.slice();
+  if(filter !== 'all') list = list.filter(r => r.status === filter);
+  document.getElementById('allCount').textContent = '(' + list.length + ')';
+  const body = document.getElementById('entryTableBody');
+  body.innerHTML = '';
+  document.getElementById('entryEmpty').style.display = list.length ? 'none' : 'block';
+  list.forEach(r=>{
+    const tr = document.createElement('tr');
+    const needsMarking = (r.status === 'Self-Update' || r.status === 'Approved');
+    const actionCell = needsMarking
+      ? '<button class="btn btn-mark btn-small" data-mark-id="' + r.id + '">Mark as updated</button>'
+      : (r.status === 'Updated' ? ('Updated ' + fmtDate(r.updatedAt)) : '—');
+    tr.innerHTML =
+      '<td>' + fmtDate(r.createdAt) + '</td>' +
+      '<td>' + r.cfa + '</td>' +
+      '<td>' + r.custcd + '</td>' +
+      '<td>' + r.custname + '</td>' +
+      '<td class="num">' + fmtMoney(r.limitnow) + '</td>' +
+      '<td class="num">' + fmtMoney(r.outstanding) + '</td>' +
+      '<td class="num">' + fmtMoney(r.reqamt) + '</td>' +
+      '<td>' + levelTag(r.tier) + '</td>' +
+      '<td>' + statusPill(r.status) + '</td>' +
+      '<td>' + (r.approverRemark || r.whRemark || '—') + '</td>' +
+      '<td>' + actionCell + '</td>';
+    body.appendChild(tr);
+  });
+
+  body.querySelectorAll('button[data-mark-id]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.getAttribute('data-mark-id');
+      const req = requests.find(r => r.id === id);
+      if(!req) return;
+      const ok = confirm('Confirm that you have updated this credit limit in the system for ' + req.custname + '?');
+      if(!ok) return;
+      try{
+        await updateRequest(id, { status: 'Updated', updatedAt: new Date().toISOString() });
+        showToast(req.custname + ' marked as updated in system.');
+      }catch(e){
+        console.error(e);
+        showToast('Could not update — check your connection.');
+      }
+    });
+  });
+}
+
+function csvEscape(val){
+  const s = String(val === null || val === undefined ? '' : val);
+  if(/[",\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+  return s;
+}
+function downloadCSV(){
+  const headers = ['Date','CFA','Cust Code','Customer','System Credit Days','Agreement Credit Days',
+    'Limit Now','Outstanding','Required Additional Credit','Required Additional Invoice',
+    'Level','Status','Warehouse Remark','Approver Remark','Decided At','Updated At'];
+  const rows = requests.map(r => [
+    fmtDate(r.createdAt), r.cfa, r.custcd, r.custname, r.sysdays, r.agrdays,
+    r.limitnow, r.outstanding, r.reqamt, r.reqinv,
+    r.tier, r.status, r.whRemark, r.approverRemark,
+    r.decidedAt ? fmtDate(r.decidedAt) : '', r.updatedAt ? fmtDate(r.updatedAt) : ''
+  ]);
+  const csvLines = [headers.map(csvEscape).join(',')].concat(rows.map(row => row.map(csvEscape).join(',')));
+  const csvContent = csvLines.join('\r\n');
+  const blob = new Blob([csvContent], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'credit-limit-requests-' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Data downloaded.');
+}
+document.getElementById('btnDownload').addEventListener('click', downloadCSV);
+
+function renderApprovalQueue(tier, searchId, pendingBodyId, pendingCountId, pendingEmptyId, histBodyId, histCountId, histEmptyId){
+  const search = document.getElementById(searchId).value.trim().toLowerCase();
+  let pending = requests.filter(r => r.status === 'Pending' && r.tier === tier);
+  if(search) pending = pending.filter(r =>
+    r.custname.toLowerCase().includes(search) || r.custcd.toLowerCase().includes(search));
+
+  document.getElementById(pendingCountId).textContent = '(' + pending.length + ')';
+  const body = document.getElementById(pendingBodyId);
+  body.innerHTML = '';
+  document.getElementById(pendingEmptyId).style.display = pending.length ? 'none' : 'block';
+
+  pending.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + fmtDate(r.createdAt) + '</td>' +
+      '<td>' + r.cfa + '</td>' +
+      '<td>' + r.custcd + '</td>' +
+      '<td>' + r.custname + '</td>' +
+      '<td class="num">' + fmtMoney(r.limitnow) + '</td>' +
+      '<td class="num">' + fmtMoney(r.outstanding) + '</td>' +
+      '<td class="num">' + fmtMoney(r.reqamt) + '</td>' +
+      '<td>' + (r.whRemark || '—') + '</td>' +
+      '<td>' +
+        '<div class="row-actions"><input class="remark-input" placeholder="Remark (optional)" id="remark_' + r.id + '" /></div>' +
+        '<div class="row-actions" style="margin-top:6px;">' +
+          '<button class="btn btn-approve" data-id="' + r.id + '" data-action="Approved">Approve</button>' +
+          '<button class="btn btn-reject" data-id="' + r.id + '" data-action="Rejected">Reject</button>' +
+        '</div>' +
+      '</td>';
+    body.appendChild(tr);
+  });
+
+  body.querySelectorAll('button[data-action]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.getAttribute('data-id');
+      const action = btn.getAttribute('data-action');
+      const remarkInput = document.getElementById('remark_' + id);
+      const remark = remarkInput ? remarkInput.value.trim() : '';
+      const req = requests.find(r => r.id === id);
+      if(!req) return;
+      try{
+        await updateRequest(id, {
+          status: action,
+          approverRemark: remark,
+          decidedAt: new Date().toISOString()
+        });
+        showToast(req.custname + ' — ' + action + '.');
+      }catch(e){
+        console.error(e);
+        showToast('Could not save decision — check your connection.');
+      }
+    });
+  });
+
+  const hist = requests.filter(r => (r.status === 'Approved' || r.status === 'Rejected' || r.status === 'Updated') && r.tier === tier)
+    .sort((a,b)=> new Date(b.decidedAt || 0) - new Date(a.decidedAt || 0));
+  document.getElementById(histCountId).textContent = '(' + hist.length + ')';
+  const histBody = document.getElementById(histBodyId);
+  histBody.innerHTML = '';
+  document.getElementById(histEmptyId).style.display = hist.length ? 'none' : 'block';
+  hist.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + fmtDate(r.createdAt) + '</td>' +
+      '<td>' + r.cfa + '</td>' +
+      '<td>' + r.custcd + '</td>' +
+      '<td>' + r.custname + '</td>' +
+      '<td class="num">' + fmtMoney(r.reqamt) + '</td>' +
+      '<td>' + statusPill(r.status) + '</td>' +
+      '<td>' + (r.approverRemark || '—') + '</td>' +
+      '<td>' + (r.decidedAt ? fmtDate(r.decidedAt) : '—') + '</td>';
+    histBody.appendChild(tr);
+  });
+}
+
+function renderCamTable(){
+  renderApprovalQueue('cam', 'camSearch', 'camTableBody', 'camPendingCount', 'camEmpty', 'camHistBody', 'camHistCount', 'camHistEmpty');
+}
+function renderSirTable(){
+  renderApprovalQueue('sir', 'sirSearch', 'sirTableBody', 'sirPendingCount', 'sirEmpty', 'sirHistBody', 'sirHistCount', 'sirHistEmpty');
+}
+
+function renderAll(){
+  renderCounts();
+  renderEntryTable();
+  renderCamTable();
+  renderSirTable();
+}
+
+document.getElementById('entryFilterStatus').addEventListener('change', renderEntryTable);
+document.getElementById('camSearch').addEventListener('input', renderCamTable);
+document.getElementById('sirSearch').addEventListener('input', renderSirTable);
+
+function switchTab(tab){
+  document.getElementById('tabEntry').classList.toggle('active', tab==='entry');
+  document.getElementById('tabCam').classList.toggle('active', tab==='cam');
+  document.getElementById('tabSir').classList.toggle('active', tab==='sir');
+  document.getElementById('viewEntry').style.display = tab==='entry' ? 'block' : 'none';
+  document.getElementById('viewCam').style.display = tab==='cam' ? 'block' : 'none';
+  document.getElementById('viewSir').style.display = tab==='sir' ? 'block' : 'none';
+}
+
+// ---- PIN lock logic ----
+const pinOverlay = document.getElementById('pinOverlay');
+const pinInput = document.getElementById('pinInput');
+const pinError = document.getElementById('pinError');
+const pinModalTitle = document.getElementById('pinModalTitle');
+const pinModalText = document.getElementById('pinModalText');
+let pendingUnlockTarget = null; // 'cam' or 'sir'
+
+function openPinModal(target){
+  pendingUnlockTarget = target;
+  pinInput.value = '';
+  pinError.textContent = '';
+  if(target === 'cam'){
+    pinModalTitle.textContent = "CAM's PIN required";
+    pinModalText.textContent = 'Only CAM can approve or reject these requests. Enter the PIN to continue.';
+  } else {
+    pinModalTitle.textContent = "Sir's PIN required";
+    pinModalText.textContent = 'Only Sir can approve or reject these requests. Enter the PIN to continue.';
+  }
+  pinOverlay.classList.add('show');
+  setTimeout(()=>pinInput.focus(), 50);
+}
+function closePinModal(){
+  pinOverlay.classList.remove('show');
+  pendingUnlockTarget = null;
+}
+function tryUnlock(){
+  const correctPin = pendingUnlockTarget === 'cam' ? CAM_PIN : SIR_PIN;
+  if(pinInput.value.trim() === correctPin){
+    if(pendingUnlockTarget === 'cam') camUnlocked = true;
+    if(pendingUnlockTarget === 'sir') sirUnlocked = true;
+    const target = pendingUnlockTarget;
+    closePinModal();
+    switchTab(target);
+  } else {
+    pinError.textContent = 'Incorrect PIN. Please try again.';
+    pinInput.value = '';
+    pinInput.focus();
+  }
+}
+document.getElementById('pinSubmit').addEventListener('click', tryUnlock);
+document.getElementById('pinCancel').addEventListener('click', closePinModal);
+pinInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') tryUnlock(); });
+pinOverlay.addEventListener('click', (e)=>{ if(e.target === pinOverlay) closePinModal(); });
+
+document.getElementById('tabEntry').addEventListener('click', ()=>{
+  switchTab('entry');
+});
+document.getElementById('tabCam').addEventListener('click', ()=>{
+  if(camUnlocked){ switchTab('cam'); } else { openPinModal('cam'); }
+});
+document.getElementById('tabSir').addEventListener('click', ()=>{
+  if(sirUnlocked){ switchTab('sir'); } else { openPinModal('sir'); }
+});
+
+initFirebase();
+</script>
+</body>
+</html>
