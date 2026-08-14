@@ -237,7 +237,32 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+
+<div class="modal-overlay show" id="loginOverlay" style="z-index:200;">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="eyebrow">Sign in</div>
+      <h3>Credit Limit Dashboard</h3>
+    </div>
+    <div class="modal-body">
+      <p>Enter your username and password to continue. Every request you raise or decision you take will be tagged with your name.</p>
+      <div style="margin-bottom:12px; text-align:left;">
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:6px;font-weight:600;">Username</label>
+        <input type="text" id="loginUsername" autocomplete="off" style="width:100%;padding:10px 11px;border:1px solid var(--line);background:#fdfcf9;font-family:var(--sans);font-size:14px;border-radius:2px;box-sizing:border-box;" />
+      </div>
+      <div style="text-align:left;">
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:6px;font-weight:600;">Password</label>
+        <input type="password" id="loginPassword" autocomplete="off" style="width:100%;padding:10px 11px;border:1px solid var(--line);background:#fdfcf9;font-family:var(--sans);font-size:14px;border-radius:2px;box-sizing:border-box;" />
+      </div>
+      <div class="modal-error" id="loginError"></div>
+    </div>
+    <div class="modal-actions" style="justify-content:flex-end;">
+      <button class="btn btn-primary" id="loginSubmit">Sign in</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" id="dashboardRoot" style="display:none;">
 
   <div class="setup-banner" id="setupBanner">
     <b>⚠ Firebase not configured yet.</b> This dashboard needs a free Firebase project to sync data live across everyone (all warehouses, Processing Team, NKAM, and Sales Director). Open this file in a text editor, find the <code>firebaseConfig</code> object near the top of the <code>&lt;script type="module"&gt;</code> block, and paste in your project's config keys. Until then the app runs in local-only mode — your entries stay on this device and won't be seen by anyone else.
@@ -249,6 +274,8 @@
       <h1>Credit Limit Approval Dashboard</h1>
     </div>
     <div class="head-right">
+      <span class="badge-count" id="currentUserBadge" style="display:none;">👤 <b id="currentUserName"></b></span>
+      <button class="btn btn-ghost btn-small" id="btnLogout" style="display:none;">Logout</button>
       <span class="conn-status" id="connStatus"><span class="conn-dot"></span><span id="connText">Connecting…</span></span>
       <span class="badge-count">Pending <b id="cntPending">0</b></span>
       <span class="badge-count">Approved <b id="cntApproved">0</b></span>
@@ -358,7 +385,7 @@
         <table>
           <thead>
             <tr>
-              <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
+              <th>Date</th><th>Posted By</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
               <th class="num">Limit Now</th><th class="num">Outstanding</th>
               <th class="num">Req. Add. Credit</th><th class="num">Req. Add. Invoice</th><th>Level</th><th>Status</th><th>Remark</th><th>Action</th>
             </tr>
@@ -382,7 +409,7 @@
         <table>
           <thead>
             <tr>
-              <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
+              <th>Date</th><th>Posted By</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
               <th class="num">Limit Now</th><th class="num">Outstanding</th>
               <th class="num">Req. Add. Credit</th><th>Next level</th><th>Warehouse Remark</th><th>Decision</th>
             </tr>
@@ -399,8 +426,8 @@
         <table>
           <thead>
             <tr>
-              <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
-              <th class="num">Req. Add. Credit</th><th>Next level</th><th>Status</th><th>Processing Remark</th><th>Decided</th>
+              <th>Date</th><th>Posted By</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
+              <th class="num">Req. Add. Credit</th><th>Next level</th><th>Status</th><th>Processing Remark</th><th>Decided By</th><th>Decided</th>
             </tr>
           </thead>
           <tbody id="procHistBody"></tbody>
@@ -422,7 +449,7 @@
         <table>
           <thead>
             <tr>
-              <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
+              <th>Date</th><th>Posted By</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
               <th class="num">Limit Now</th><th class="num">Outstanding</th>
               <th class="num">Req. Add. Credit</th><th>Warehouse Remark</th><th>Decision</th>
             </tr>
@@ -439,8 +466,8 @@
         <table>
           <thead>
             <tr>
-              <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
-              <th class="num">Req. Add. Credit</th><th>Status</th><th>NKAM Remark</th><th>Decided</th>
+              <th>Date</th><th>Posted By</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
+              <th class="num">Req. Add. Credit</th><th>Status</th><th>NKAM Remark</th><th>Decided By</th><th>Decided</th>
             </tr>
           </thead>
           <tbody id="camHistBody"></tbody>
@@ -462,7 +489,7 @@
         <table>
           <thead>
             <tr>
-              <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
+              <th>Date</th><th>Posted By</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
               <th class="num">Limit Now</th><th class="num">Outstanding</th>
               <th class="num">Req. Add. Credit</th><th>Warehouse Remark</th><th>Decision</th>
             </tr>
@@ -479,8 +506,8 @@
         <table>
           <thead>
             <tr>
-              <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
-              <th class="num">Req. Add. Credit</th><th>Status</th><th>Sales Director's Remark</th><th>Decided</th>
+              <th>Date</th><th>Posted By</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
+              <th class="num">Req. Add. Credit</th><th>Status</th><th>Sales Director's Remark</th><th>Decided By</th><th>Decided</th>
             </tr>
           </thead>
           <tbody id="sirHistBody"></tbody>
@@ -544,6 +571,17 @@ const SIR_PIN = '1947';
 let procUnlocked = false;
 let camUnlocked = false;
 let sirUnlocked = false;
+
+// ---- User accounts. Add / remove / edit users here — one line per person. ----
+// { username: 'login id (any case)', password: 'their password', name: 'Full name shown on entries' }
+const USERS = [
+  { username: 'admin',   password: 'admin123',   name: 'Admin' },
+  { username: 'mumbai',  password: 'mumbai123',  name: 'Mumbai Warehouse' },
+  { username: 'delhi',   password: 'delhi123',   name: 'Delhi Warehouse' },
+  { username: 'nkam',    password: 'nkam123',    name: 'NKAM' },
+  { username: 'sd',      password: 'sd123',      name: 'Sales Director' },
+];
+let currentUser = null;
 
 let requests = [];
 let db = null;
@@ -649,6 +687,48 @@ function showToast(msg){
 }
 function uid(){ return 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
 
+// ---- Login / logout ----
+function tryLogin(){
+  const u = document.getElementById('loginUsername').value.trim();
+  const p = document.getElementById('loginPassword').value;
+  const errBox = document.getElementById('loginError');
+  const found = USERS.find(x => x.username.toLowerCase() === u.toLowerCase() && x.password === p);
+  if(!u || !p){
+    errBox.textContent = 'Please enter both username and password.';
+    return;
+  }
+  if(found){
+    currentUser = found;
+    document.getElementById('loginOverlay').classList.remove('show');
+    document.getElementById('dashboardRoot').style.display = 'block';
+    document.getElementById('currentUserBadge').style.display = 'inline-flex';
+    document.getElementById('currentUserName').textContent = found.name;
+    document.getElementById('btnLogout').style.display = 'inline-block';
+    errBox.textContent = '';
+    document.getElementById('loginPassword').value = '';
+  } else {
+    errBox.textContent = 'Incorrect username or password.';
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('loginPassword').focus();
+  }
+}
+function logout(){
+  currentUser = null;
+  document.getElementById('dashboardRoot').style.display = 'none';
+  document.getElementById('currentUserBadge').style.display = 'none';
+  document.getElementById('btnLogout').style.display = 'none';
+  document.getElementById('loginUsername').value = '';
+  document.getElementById('loginPassword').value = '';
+  document.getElementById('loginError').textContent = '';
+  document.getElementById('loginOverlay').classList.add('show');
+  setTimeout(()=>document.getElementById('loginUsername').focus(), 50);
+}
+document.getElementById('loginSubmit').addEventListener('click', tryLogin);
+document.getElementById('loginPassword').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') tryLogin(); });
+document.getElementById('loginUsername').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') document.getElementById('loginPassword').focus(); });
+document.getElementById('btnLogout').addEventListener('click', logout);
+setTimeout(()=>document.getElementById('loginUsername').focus(), 100);
+
 function tierFor(amount){
   const amt = Number(amount) || 0;
   if(amt <= SELF_LIMIT) return 'self';
@@ -678,11 +758,15 @@ function collectForm(){
     whRemark: document.getElementById('f_remarks').value.trim(),
     tier: tier,
     status: 'Pending-Processing',
+    postedByUsername: currentUser ? currentUser.username : '',
+    postedByName: currentUser ? currentUser.name : 'Unknown',
     procRemark: '',
     procDecidedAt: null,
+    procDecidedByName: '',
     approverRemark: '',
     createdAt: new Date().toISOString(),
     decidedAt: null,
+    decidedByName: '',
     updatedAt: null
   };
 }
@@ -722,6 +806,7 @@ document.getElementById('f_reqamt').addEventListener('input', updateTierPreview)
 
 document.getElementById('btnSubmit').addEventListener('click', async ()=>{
   const btn = document.getElementById('btnSubmit');
+  if(!currentUser){ showToast('Please sign in first.'); return; }
   const req = collectForm();
   const err = validate(req);
   if(err){ showToast(err); return; }
@@ -788,6 +873,7 @@ function renderEntryTable(){
       : (r.status === 'Updated' ? ('Updated ' + fmtDate(r.updatedAt)) : '—');
     tr.innerHTML =
       '<td>' + fmtDate(r.createdAt) + '</td>' +
+      '<td>' + esc(r.postedByName || '—') + '</td>' +
       '<td>' + esc(r.cfa) + '</td>' +
       '<td>' + esc(r.custcd) + '</td>' +
       '<td>' + esc(r.custname) + '</td>' +
@@ -810,7 +896,7 @@ function renderEntryTable(){
       const ok = confirm('Confirm that you have updated this credit limit in the system for ' + req.custname + '?');
       if(!ok) return;
       try{
-        await updateRequest(id, { status: 'Updated', updatedAt: new Date().toISOString() });
+        await updateRequest(id, { status: 'Updated', updatedAt: new Date().toISOString(), updatedByName: currentUser ? currentUser.name : '' });
         showToast(req.custname + ' marked as updated in system.');
       }catch(e){
         console.error(e);
@@ -826,14 +912,15 @@ function csvEscape(val){
   return s;
 }
 function downloadCSV(){
-  const headers = ['Date','CFA','Cust Code','Customer','System Credit Days','Agreement Credit Days',
+  const headers = ['Date','Posted By','CFA','Cust Code','Customer','System Credit Days','Agreement Credit Days',
     'Limit Now','Outstanding','Required Additional Credit','Required Additional Invoice',
-    'Level','Status','Warehouse Remark','Processing Remark','Processing Decided At','Approver Remark','Decided At','Updated At'];
+    'Level','Status','Warehouse Remark','Processing Remark','Processing Decided By','Processing Decided At',
+    'Approver Remark','Decided By','Decided At','Updated By','Updated At'];
   const rows = requests.map(r => [
-    fmtDate(r.createdAt), r.cfa, r.custcd, r.custname, r.sysdays, r.agrdays,
+    fmtDate(r.createdAt), r.postedByName, r.cfa, r.custcd, r.custname, r.sysdays, r.agrdays,
     r.limitnow, r.outstanding, r.reqamt, r.reqinv,
-    r.tier, r.status, r.whRemark, r.procRemark, (r.procDecidedAt ? fmtDate(r.procDecidedAt) : ''), r.approverRemark,
-    r.decidedAt ? fmtDate(r.decidedAt) : '', r.updatedAt ? fmtDate(r.updatedAt) : ''
+    r.tier, r.status, r.whRemark, r.procRemark, r.procDecidedByName, (r.procDecidedAt ? fmtDate(r.procDecidedAt) : ''),
+    r.approverRemark, r.decidedByName, r.decidedAt ? fmtDate(r.decidedAt) : '', r.updatedByName, r.updatedAt ? fmtDate(r.updatedAt) : ''
   ]);
   const csvLines = [headers.map(csvEscape).join(',')].concat(rows.map(row => row.map(csvEscape).join(',')));
   const csvContent = csvLines.join('\r\n');
@@ -865,13 +952,14 @@ function renderApprovalQueue(tier, searchId, pendingBodyId, pendingCountId, pend
     const tr = document.createElement('tr');
     tr.innerHTML =
       '<td>' + fmtDate(r.createdAt) + '</td>' +
-      '<td>' + r.cfa + '</td>' +
-      '<td>' + r.custcd + '</td>' +
-      '<td>' + r.custname + '</td>' +
+      '<td>' + esc(r.postedByName || '—') + '</td>' +
+      '<td>' + esc(r.cfa) + '</td>' +
+      '<td>' + esc(r.custcd) + '</td>' +
+      '<td>' + esc(r.custname) + '</td>' +
       '<td class="num">' + fmtMoney(r.limitnow) + '</td>' +
       '<td class="num">' + fmtMoney(r.outstanding) + '</td>' +
       '<td class="num">' + fmtMoney(r.reqamt) + '</td>' +
-      '<td>' + (r.whRemark || '—') + '</td>' +
+      '<td>' + esc(r.whRemark || '—') + '</td>' +
       '<td>' +
         '<div class="row-actions"><input class="remark-input" placeholder="Remark (optional)" id="remark_' + r.id + '" /></div>' +
         '<div class="row-actions" style="margin-top:6px;">' +
@@ -894,7 +982,8 @@ function renderApprovalQueue(tier, searchId, pendingBodyId, pendingCountId, pend
         await updateRequest(id, {
           status: action,
           approverRemark: remark,
-          decidedAt: new Date().toISOString()
+          decidedAt: new Date().toISOString(),
+          decidedByName: currentUser ? currentUser.name : ''
         });
         showToast(req.custname + ' — ' + action + '.');
       }catch(e){
@@ -914,12 +1003,14 @@ function renderApprovalQueue(tier, searchId, pendingBodyId, pendingCountId, pend
     const tr = document.createElement('tr');
     tr.innerHTML =
       '<td>' + fmtDate(r.createdAt) + '</td>' +
-      '<td>' + r.cfa + '</td>' +
-      '<td>' + r.custcd + '</td>' +
-      '<td>' + r.custname + '</td>' +
+      '<td>' + esc(r.postedByName || '—') + '</td>' +
+      '<td>' + esc(r.cfa) + '</td>' +
+      '<td>' + esc(r.custcd) + '</td>' +
+      '<td>' + esc(r.custname) + '</td>' +
       '<td class="num">' + fmtMoney(r.reqamt) + '</td>' +
       '<td>' + statusPill(r.status) + '</td>' +
-      '<td>' + (r.approverRemark || '—') + '</td>' +
+      '<td>' + esc(r.approverRemark || '—') + '</td>' +
+      '<td>' + esc(r.decidedByName || '—') + '</td>' +
       '<td>' + (r.decidedAt ? fmtDate(r.decidedAt) : '—') + '</td>';
     histBody.appendChild(tr);
   });
@@ -940,6 +1031,7 @@ function renderProcTable(){
     const tr = document.createElement('tr');
     tr.innerHTML =
       '<td>' + fmtDate(r.createdAt) + '</td>' +
+      '<td>' + esc(r.postedByName || '—') + '</td>' +
       '<td>' + esc(r.cfa) + '</td>' +
       '<td>' + esc(r.custcd) + '</td>' +
       '<td>' + esc(r.custname) + '</td>' +
@@ -971,7 +1063,8 @@ function renderProcTable(){
         await updateRequest(id, {
           status: nextStatus,
           procRemark: remark,
-          procDecidedAt: new Date().toISOString()
+          procDecidedAt: new Date().toISOString(),
+          procDecidedByName: currentUser ? currentUser.name : ''
         });
         showToast(req.custname + ' — ' + (action === 'reject' ? 'Rejected by Processing Team.' : 'Approved by Processing Team, moved to next level.'));
       }catch(e){
@@ -991,6 +1084,7 @@ function renderProcTable(){
     const tr = document.createElement('tr');
     tr.innerHTML =
       '<td>' + fmtDate(r.createdAt) + '</td>' +
+      '<td>' + esc(r.postedByName || '—') + '</td>' +
       '<td>' + esc(r.cfa) + '</td>' +
       '<td>' + esc(r.custcd) + '</td>' +
       '<td>' + esc(r.custname) + '</td>' +
@@ -998,6 +1092,7 @@ function renderProcTable(){
       '<td>' + levelTag(r.tier) + '</td>' +
       '<td>' + statusPill(r.status) + '</td>' +
       '<td>' + esc(r.procRemark || '—') + '</td>' +
+      '<td>' + esc(r.procDecidedByName || '—') + '</td>' +
       '<td>' + (r.procDecidedAt ? fmtDate(r.procDecidedAt) : '—') + '</td>';
     histBody.appendChild(tr);
   });
