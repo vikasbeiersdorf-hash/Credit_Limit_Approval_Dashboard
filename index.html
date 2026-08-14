@@ -969,7 +969,7 @@ function processBulkRows(rows){
     if(!raw.cfa) error = 'Missing CFA';
     else if(!raw.custcd) error = 'Missing Cust Code';
     else if(!raw.custname) error = 'Missing Customer Name';
-    else if(!raw.reqamt || Number(raw.reqamt) <= 0) error = 'Missing/invalid Required Additional Credit';
+    else if(!raw.reqamt || Number(raw.reqamt) <= -0) error = 'Missing/invalid Required Additional Credit';
     return { raw, error };
   });
   renderBulkPreview();
