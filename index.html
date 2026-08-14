@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Credit Limit Approval Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --ink:#1c2430;
@@ -356,9 +357,16 @@
         </div>
       </div>
       <div class="tier-preview" id="tierPreview"></div>
-      <div class="form-actions">
-        <button class="btn btn-ghost" id="btnClear">Clear form</button>
-        <button class="btn btn-primary" id="btnSubmit">Submit</button>
+      <div class="form-actions" style="justify-content:space-between;flex-wrap:wrap;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-small" id="btnTemplate">⬇ Download Excel template</button>
+          <button class="btn btn-ghost btn-small" id="btnBulkUpload">⬆ Upload Excel (bulk entries)</button>
+          <input type="file" id="bulkFileInput" accept=".xlsx,.xls,.csv" style="display:none" />
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button class="btn btn-ghost" id="btnClear">Clear form</button>
+          <button class="btn btn-primary" id="btnSubmit">Submit</button>
+        </div>
       </div>
     </div>
 
@@ -535,6 +543,30 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" id="pinCancel">Cancel</button>
       <button class="btn btn-primary" id="pinSubmit">Unlock</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="bulkOverlay">
+  <div class="modal-box" style="max-width:760px;">
+    <div class="modal-head">
+      <div class="eyebrow">Bulk upload</div>
+      <h3>Review before uploading</h3>
+    </div>
+    <div class="modal-body" style="max-height:52vh; overflow:auto; text-align:left;">
+      <p id="bulkSummary">—</p>
+      <div class="table-wrap" style="margin-top:0;">
+        <table style="font-size:12px;">
+          <thead>
+            <tr><th>#</th><th>CFA</th><th>Cust Code</th><th>Customer</th><th class="num">Req. Add. Credit</th><th>Status</th></tr>
+          </thead>
+          <tbody id="bulkPreviewBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="bulkCancel">Cancel</button>
+      <button class="btn btn-primary" id="bulkConfirm">Upload valid entries</button>
     </div>
   </div>
 </div>
@@ -741,21 +773,21 @@ function levelTag(tier){
   return '<span class="level-tag level-sir">Sales Director</span>';
 }
 
-function collectForm(){
-  const reqamt = document.getElementById('f_reqamt').value;
+function buildRequestObject(fields){
+  const reqamt = fields.reqamt;
   const tier = tierFor(reqamt);
   return {
     id: uid(),
-    cfa: document.getElementById('f_cfa').value.trim(),
-    custcd: document.getElementById('f_custcd').value.trim(),
-    custname: document.getElementById('f_custname').value.trim(),
-    sysdays: document.getElementById('f_sysdays').value,
-    agrdays: document.getElementById('f_agrdays').value,
-    limitnow: document.getElementById('f_limitnow').value,
-    outstanding: document.getElementById('f_outstanding').value,
+    cfa: (fields.cfa || '').trim(),
+    custcd: (fields.custcd || '').trim(),
+    custname: (fields.custname || '').trim(),
+    sysdays: fields.sysdays || '',
+    agrdays: fields.agrdays || '',
+    limitnow: fields.limitnow || '',
+    outstanding: fields.outstanding || '',
     reqamt: reqamt,
-    reqinv: document.getElementById('f_reqinv').value,
-    whRemark: document.getElementById('f_remarks').value.trim(),
+    reqinv: fields.reqinv || '',
+    whRemark: (fields.whRemark || '').trim(),
     tier: tier,
     status: 'Pending-Processing',
     postedByUsername: currentUser ? currentUser.username : '',
@@ -769,6 +801,20 @@ function collectForm(){
     decidedByName: '',
     updatedAt: null
   };
+}
+function collectForm(){
+  return buildRequestObject({
+    cfa: document.getElementById('f_cfa').value,
+    custcd: document.getElementById('f_custcd').value,
+    custname: document.getElementById('f_custname').value,
+    sysdays: document.getElementById('f_sysdays').value,
+    agrdays: document.getElementById('f_agrdays').value,
+    limitnow: document.getElementById('f_limitnow').value,
+    outstanding: document.getElementById('f_outstanding').value,
+    reqamt: document.getElementById('f_reqamt').value,
+    reqinv: document.getElementById('f_reqinv').value,
+    whRemark: document.getElementById('f_remarks').value
+  });
 }
 function clearForm(){
   ['f_cfa','f_custcd','f_custname','f_sysdays','f_agrdays','f_limitnow','f_outstanding','f_reqamt','f_reqinv','f_remarks']
@@ -847,6 +893,143 @@ function statusPill(status){
 function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+
+// ---- Bulk upload via Excel/CSV ----
+function normalizeHeader(h){
+  return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+const BULK_HEADER_MAP = {
+  'cfa': 'cfa',
+  'custcode': 'custcd', 'custcd': 'custcd',
+  'customername': 'custname', 'customer': 'custname', 'custname': 'custname',
+  'systemcreditdays': 'sysdays', 'sysdays': 'sysdays',
+  'agreementcreditdays': 'agrdays', 'agrdays': 'agrdays',
+  'limitnowonsystem': 'limitnow', 'limitnow': 'limitnow',
+  'outstanding': 'outstanding',
+  'requiredadditionalcredit': 'reqamt', 'reqamt': 'reqamt',
+  'requiredadditionalinvoice': 'reqinv', 'reqinv': 'reqinv',
+  'remarks': 'whRemark', 'remarksoptional': 'whRemark', 'remark': 'whRemark'
+};
+const BULK_TEMPLATE_HEADERS = ['CFA','Cust Code','Customer Name','System Credit Days','Agreement Credit Days',
+  'Limit Now on System (₹)','Outstanding (₹)','Required Additional Credit (₹)','Required Additional Invoice','Remarks (optional)'];
+
+function downloadBulkTemplate(){
+  const example = ['MUM','5772MU-MUM','Flipkart India Pvt. Ltd - Bhiwandi','15','30','500000','767663','380000','35','Urgent festive season order'];
+  const csvLines = [BULK_TEMPLATE_HEADERS.map(csvEscape).join(','), example.map(csvEscape).join(',')];
+  const blob = new Blob([csvLines.join('\r\n')], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'credit-limit-bulk-upload-template.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+document.getElementById('btnTemplate').addEventListener('click', downloadBulkTemplate);
+
+document.getElementById('btnBulkUpload').addEventListener('click', ()=>{
+  if(!currentUser){ showToast('Please sign in first.'); return; }
+  document.getElementById('bulkFileInput').click();
+});
+
+let bulkParsedRows = [];
+
+document.getElementById('bulkFileInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt)=>{
+    try{
+      const data = new Uint8Array(evt.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''});
+      processBulkRows(rows);
+    }catch(err){
+      console.error(err);
+      showToast('Could not read that file — please use the downloaded template format.');
+    }
+    e.target.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function processBulkRows(rows){
+  if(!rows.length){ showToast('That file looks empty.'); return; }
+  const headerRow = rows[0];
+  const keyByCol = headerRow.map(h => BULK_HEADER_MAP[normalizeHeader(h)] || null);
+  const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
+  if(!dataRows.length){ showToast('No data rows found below the header row.'); return; }
+
+  bulkParsedRows = dataRows.map(r=>{
+    const raw = {};
+    keyByCol.forEach((key, idx)=>{ if(key) raw[key] = (r[idx] !== undefined ? String(r[idx]).trim() : ''); });
+    let error = '';
+    if(!raw.cfa) error = 'Missing CFA';
+    else if(!raw.custcd) error = 'Missing Cust Code';
+    else if(!raw.custname) error = 'Missing Customer Name';
+    else if(!raw.reqamt || Number(raw.reqamt) <= 0) error = 'Missing/invalid Required Additional Credit';
+    return { raw, error };
+  });
+  renderBulkPreview();
+  document.getElementById('bulkOverlay').classList.add('show');
+}
+
+function renderBulkPreview(){
+  const validCount = bulkParsedRows.filter(p => !p.error).length;
+  const invalidCount = bulkParsedRows.length - validCount;
+  document.getElementById('bulkSummary').textContent =
+    bulkParsedRows.length + ' row(s) found — ' + validCount + ' look valid and will be uploaded' +
+    (invalidCount ? ', ' + invalidCount + ' will be skipped (see reason below).' : '.');
+  const body = document.getElementById('bulkPreviewBody');
+  body.innerHTML = '';
+  bulkParsedRows.forEach((p, i)=>{
+    const tr = document.createElement('tr');
+    const statusText = p.error ? ('⚠ ' + esc(p.error)) : '✓ OK';
+    tr.innerHTML =
+      '<td>' + (i + 1) + '</td>' +
+      '<td>' + esc(p.raw.cfa || '') + '</td>' +
+      '<td>' + esc(p.raw.custcd || '') + '</td>' +
+      '<td>' + esc(p.raw.custname || '') + '</td>' +
+      '<td class="num">' + esc(p.raw.reqamt || '') + '</td>' +
+      '<td style="color:' + (p.error ? 'var(--red)' : 'var(--green)') + ';">' + statusText + '</td>';
+    body.appendChild(tr);
+  });
+  const confirmBtn = document.getElementById('bulkConfirm');
+  confirmBtn.textContent = 'Upload ' + validCount + ' valid ' + (validCount === 1 ? 'entry' : 'entries');
+  confirmBtn.disabled = validCount === 0;
+}
+
+function closeBulkModal(){
+  document.getElementById('bulkOverlay').classList.remove('show');
+  bulkParsedRows = [];
+}
+document.getElementById('bulkCancel').addEventListener('click', closeBulkModal);
+document.getElementById('bulkOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'bulkOverlay') closeBulkModal();
+});
+
+document.getElementById('bulkConfirm').addEventListener('click', async ()=>{
+  const btn = document.getElementById('bulkConfirm');
+  const validRows = bulkParsedRows.filter(p => !p.error);
+  if(!validRows.length) return;
+  btn.disabled = true;
+  let success = 0, fail = 0;
+  for(const p of validRows){
+    const req = buildRequestObject(p.raw);
+    try{
+      await saveRequest(req);
+      success++;
+    }catch(e){
+      console.error(e);
+      fail++;
+    }
+  }
+  closeBulkModal();
+  showToast(success + ' entr' + (success === 1 ? 'y' : 'ies') + ' uploaded and sent to Processing Team' + (fail ? (', ' + fail + ' failed') : '') + '.');
+});
+
 function populateCfaFilter(){
   const select = document.getElementById('entryFilterCfa');
   const current = select.value;
