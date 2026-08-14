@@ -719,7 +719,61 @@ function showToast(msg){
 }
 function uid(){ return 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
 
+// ---- Session persistence + 10-minute idle auto-lock ----
+// Change this to adjust how many minutes of inactivity before it locks again.
+const IDLE_LIMIT_MINUTES = 10;
+const IDLE_LIMIT_MS = IDLE_LIMIT_MINUTES * 60 * 1000;
+const SESSION_KEY = 'creditDashboardSession';
+let idleCheckTimer = null;
+let lastActivitySaveAt = 0;
+
+function saveSession(user){
+  try{
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ username: user.username, lastActivity: Date.now() }));
+  }catch(e){}
+}
+function touchActivity(){
+  if(!currentUser) return;
+  const now = Date.now();
+  // Throttle writes to localStorage — no need to write on every single mouse pixel move.
+  if(now - lastActivitySaveAt < 5000) return;
+  lastActivitySaveAt = now;
+  try{
+    const raw = localStorage.getItem(SESSION_KEY);
+    const session = raw ? JSON.parse(raw) : {};
+    session.username = currentUser.username;
+    session.lastActivity = now;
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  }catch(e){}
+}
+function clearSession(){
+  try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
+}
+function checkIdle(){
+  if(!currentUser) return;
+  try{
+    const raw = localStorage.getItem(SESSION_KEY);
+    const session = raw ? JSON.parse(raw) : null;
+    const lastActivity = session ? session.lastActivity : 0;
+    if(Date.now() - lastActivity >= IDLE_LIMIT_MS){
+      logout(true);
+    }
+  }catch(e){}
+}
+['mousemove','mousedown','keydown','scroll','touchstart','click'].forEach(evt=>{
+  document.addEventListener(evt, touchActivity, { passive:true });
+});
+idleCheckTimer = setInterval(checkIdle, 15000); // check every 15s, locks within ~15s of hitting the limit
+
 // ---- Login / logout ----
+function showDashboardFor(user){
+  currentUser = user;
+  document.getElementById('loginOverlay').classList.remove('show');
+  document.getElementById('dashboardRoot').style.display = 'block';
+  document.getElementById('currentUserBadge').style.display = 'inline-flex';
+  document.getElementById('currentUserName').textContent = user.name;
+  document.getElementById('btnLogout').style.display = 'inline-block';
+}
 function tryLogin(){
   const u = document.getElementById('loginUsername').value.trim();
   const p = document.getElementById('loginPassword').value;
@@ -730,12 +784,9 @@ function tryLogin(){
     return;
   }
   if(found){
-    currentUser = found;
-    document.getElementById('loginOverlay').classList.remove('show');
-    document.getElementById('dashboardRoot').style.display = 'block';
-    document.getElementById('currentUserBadge').style.display = 'inline-flex';
-    document.getElementById('currentUserName').textContent = found.name;
-    document.getElementById('btnLogout').style.display = 'inline-block';
+    showDashboardFor(found);
+    saveSession(found);
+    lastActivitySaveAt = Date.now();
     errBox.textContent = '';
     document.getElementById('loginPassword').value = '';
   } else {
@@ -744,22 +795,44 @@ function tryLogin(){
     document.getElementById('loginPassword').focus();
   }
 }
-function logout(){
+function logout(dueToIdle){
   currentUser = null;
+  clearSession();
   document.getElementById('dashboardRoot').style.display = 'none';
   document.getElementById('currentUserBadge').style.display = 'none';
   document.getElementById('btnLogout').style.display = 'none';
   document.getElementById('loginUsername').value = '';
   document.getElementById('loginPassword').value = '';
-  document.getElementById('loginError').textContent = '';
+  document.getElementById('loginError').textContent = dueToIdle
+    ? ('Locked after ' + IDLE_LIMIT_MINUTES + ' minutes of inactivity. Please sign in again.')
+    : '';
   document.getElementById('loginOverlay').classList.add('show');
   setTimeout(()=>document.getElementById('loginUsername').focus(), 50);
 }
 document.getElementById('loginSubmit').addEventListener('click', tryLogin);
 document.getElementById('loginPassword').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') tryLogin(); });
 document.getElementById('loginUsername').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') document.getElementById('loginPassword').focus(); });
-document.getElementById('btnLogout').addEventListener('click', logout);
-setTimeout(()=>document.getElementById('loginUsername').focus(), 100);
+document.getElementById('btnLogout').addEventListener('click', ()=>logout(false));
+
+// On page load: if a session exists and is still within the idle window, sign the user
+// back in automatically instead of forcing a fresh login on every refresh.
+(function restoreSession(){
+  try{
+    const raw = localStorage.getItem(SESSION_KEY);
+    const session = raw ? JSON.parse(raw) : null;
+    if(session && (Date.now() - session.lastActivity) < IDLE_LIMIT_MS){
+      const found = USERS.find(x => x.username === session.username);
+      if(found){
+        showDashboardFor(found);
+        lastActivitySaveAt = Date.now();
+        touchActivity();
+        return;
+      }
+    }
+  }catch(e){}
+  clearSession();
+  setTimeout(()=>document.getElementById('loginUsername').focus(), 100);
+})();
 
 function tierFor(amount){
   const amt = Number(amount) || 0;
@@ -825,7 +898,7 @@ function validate(req){
   if(!req.cfa) return 'Please enter CFA.';
   if(!req.custcd) return 'Please enter the customer code.';
   if(!req.custname) return 'Please enter the customer name.';
-  if(req.reqamt === '' || Number(req.reqamt) <= 0) return 'Please enter a valid required additional credit amount.';
+  if(req.reqamt === '' || isNaN(Number(req.reqamt)) || Number(req.reqamt) < 0) return 'Please enter a valid required additional credit amount.';
   return null;
 }
 
@@ -969,7 +1042,7 @@ function processBulkRows(rows){
     if(!raw.cfa) error = 'Missing CFA';
     else if(!raw.custcd) error = 'Missing Cust Code';
     else if(!raw.custname) error = 'Missing Customer Name';
-    else if(!raw.reqamt || Number(raw.reqamt) <= -0) error = 'Missing/invalid Required Additional Credit';
+    else if(raw.reqamt === '' || raw.reqamt === undefined || isNaN(Number(raw.reqamt)) || Number(raw.reqamt) < 0) error = 'Missing/invalid Required Additional Credit';
     return { raw, error };
   });
   renderBulkPreview();
