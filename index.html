@@ -240,7 +240,7 @@
 <div class="wrap">
 
   <div class="setup-banner" id="setupBanner">
-    <b>⚠ Firebase not configured yet.</b> This dashboard needs a free Firebase project to sync data live across everyone (all warehouses, CAM, and Sir). Open this file in a text editor, find the <code>firebaseConfig</code> object near the top of the <code>&lt;script type="module"&gt;</code> block, and paste in your project's config keys. Until then the app runs in local-only mode — your entries stay on this device and won't be seen by anyone else.
+    <b>⚠ Firebase not configured yet.</b> This dashboard needs a free Firebase project to sync data live across everyone (all warehouses, NKAM, and Sales Director). Open this file in a text editor, find the <code>firebaseConfig</code> object near the top of the <code>&lt;script type="module"&gt;</code> block, and paste in your project's config keys. Until then the app runs in local-only mode — your entries stay on this device and won't be seen by anyone else.
   </div>
 
   <div class="head">
@@ -259,8 +259,8 @@
 
   <div class="rules-strip">
     <div class="rule-chip self"><b>Up to ₹2,00,000</b>You can update this directly in the system — no approval needed.</div>
-    <div class="rule-chip cam"><b>₹2,00,001 – ₹3,00,000</b>Requires CAM approval before updating.</div>
-    <div class="rule-chip sir"><b>Above ₹3,00,000</b>Requires Sir's approval before updating.</div>
+    <div class="rule-chip cam"><b>₹2,00,001 – ₹3,00,000</b>Requires NKAM approval before updating.</div>
+    <div class="rule-chip sir"><b>Above ₹3,00,000</b>Requires Sales Director's approval before updating.</div>
   </div>
 
   <div class="tabs">
@@ -269,11 +269,11 @@
       <span class="sub">Raise a credit limit request</span>
     </div>
     <div class="tab" data-tab="cam" id="tabCam">
-      CAM Approval <span class="lock-icon">🔒</span>
+      NKAM Approval <span class="lock-icon">🔒</span>
       <span class="sub">₹2L – ₹3L requests</span>
     </div>
     <div class="tab" data-tab="sir" id="tabSir">
-      Sir Approval <span class="lock-icon">🔒</span>
+      Sales Director Approval <span class="lock-icon">🔒</span>
       <span class="sub">Above ₹3L requests</span>
     </div>
   </div>
@@ -285,43 +285,43 @@
       <div class="form-grid">
         <div class="field">
           <label>CFA</label>
-          <input id="f_cfa" placeholder="e.g. MUM" />
+          <input id="f_cfa" placeholder="e.g. MUM" autocomplete="off" />
         </div>
         <div class="field">
           <label>Cust Code</label>
-          <input id="f_custcd" placeholder="e.g. 5772MU-MUM" />
+          <input id="f_custcd" placeholder="e.g. 5772MU-MUM" autocomplete="off" />
         </div>
         <div class="field wide">
           <label>Customer Name</label>
-          <input id="f_custname" placeholder="e.g. Flipkart India Pvt. Ltd - Bhiwandi" />
+          <input id="f_custname" placeholder="e.g. Flipkart India Pvt. Ltd - Bhiwandi" autocomplete="off" />
         </div>
         <div class="field">
           <label>System Credit Days</label>
-          <input id="f_sysdays" type="number" placeholder="e.g. 15" />
+          <input id="f_sysdays" type="number" placeholder="e.g. 15" autocomplete="off" />
         </div>
         <div class="field">
           <label>Agreement Credit Days</label>
-          <input id="f_agrdays" type="number" placeholder="e.g. 30" />
+          <input id="f_agrdays" type="number" placeholder="e.g. 30" autocomplete="off" />
         </div>
         <div class="field">
           <label>Limit Now on System (₹)</label>
-          <input id="f_limitnow" type="number" placeholder="e.g. 500000" />
+          <input id="f_limitnow" type="number" placeholder="e.g. 500000" autocomplete="off" />
         </div>
         <div class="field">
           <label>Outstanding (₹)</label>
-          <input id="f_outstanding" type="number" placeholder="e.g. 767663" />
+          <input id="f_outstanding" type="number" placeholder="e.g. 767663" autocomplete="off" />
         </div>
         <div class="field">
           <label>Required Additional Credit (₹)</label>
-          <input id="f_reqamt" type="number" placeholder="e.g. 380000" />
+          <input id="f_reqamt" type="number" placeholder="e.g. 380000" autocomplete="off" />
         </div>
         <div class="field">
           <label>Required Additional Invoice</label>
-          <input id="f_reqinv" type="number" placeholder="e.g. 35" />
+          <input id="f_reqinv" type="number" placeholder="e.g. 35" autocomplete="off" />
         </div>
         <div class="field wide">
           <label>Remarks (optional)</label>
-          <input id="f_remarks" placeholder="Reason for additional credit / urgency" />
+          <input id="f_remarks" placeholder="Reason for additional credit / urgency" autocomplete="off" />
         </div>
       </div>
       <div class="tier-preview" id="tierPreview"></div>
@@ -361,9 +361,9 @@
     </div>
   </div>
 
-  <!-- CAM VIEW -->
+  <!-- NKAM VIEW -->
   <div id="viewCam" style="display:none;">
-    <div class="section-title">CAM pending approvals <span class="count" id="camPendingCount"></span></div>
+    <div class="section-title">NKAM pending approvals <span class="count" id="camPendingCount"></span></div>
     <div class="hint">Requests between ₹2,00,001 and ₹3,00,000.</div>
     <div class="panel">
       <div class="filters">
@@ -380,18 +380,18 @@
           </thead>
           <tbody id="camTableBody"></tbody>
         </table>
-        <div class="empty" id="camEmpty" style="display:none;">No pending requests for CAM. All caught up.</div>
+        <div class="empty" id="camEmpty" style="display:none;">No pending requests for NKAM. All caught up.</div>
       </div>
     </div>
 
-    <div class="section-title">CAM decision history <span class="count" id="camHistCount"></span></div>
+    <div class="section-title">NKAM decision history <span class="count" id="camHistCount"></span></div>
     <div class="panel">
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
               <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
-              <th class="num">Req. Add. Credit</th><th>Status</th><th>CAM Remark</th><th>Decided</th>
+              <th class="num">Req. Add. Credit</th><th>Status</th><th>NKAM Remark</th><th>Decided</th>
             </tr>
           </thead>
           <tbody id="camHistBody"></tbody>
@@ -401,9 +401,9 @@
     </div>
   </div>
 
-  <!-- SIR VIEW -->
+  <!-- SALES DIRECTOR VIEW -->
   <div id="viewSir" style="display:none;">
-    <div class="section-title">Sir's pending approvals <span class="count" id="sirPendingCount"></span></div>
+    <div class="section-title">Sales Director's pending approvals <span class="count" id="sirPendingCount"></span></div>
     <div class="hint">Requests above ₹3,00,000.</div>
     <div class="panel">
       <div class="filters">
@@ -420,18 +420,18 @@
           </thead>
           <tbody id="sirTableBody"></tbody>
         </table>
-        <div class="empty" id="sirEmpty" style="display:none;">No pending requests for Sir. All caught up.</div>
+        <div class="empty" id="sirEmpty" style="display:none;">No pending requests for Sales Director. All caught up.</div>
       </div>
     </div>
 
-    <div class="section-title">Sir's decision history <span class="count" id="sirHistCount"></span></div>
+    <div class="section-title">Sales Director's decision history <span class="count" id="sirHistCount"></span></div>
     <div class="panel">
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
               <th>Date</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
-              <th class="num">Req. Add. Credit</th><th>Status</th><th>Sir's Remark</th><th>Decided</th>
+              <th class="num">Req. Add. Credit</th><th>Status</th><th>Sales Director's Remark</th><th>Decided</th>
             </tr>
           </thead>
           <tbody id="sirHistBody"></tbody>
@@ -486,9 +486,9 @@ const COLLECTION_NAME = 'credit_requests';
 
 // ---- Approval thresholds (change these three numbers if the policy changes) ----
 const SELF_LIMIT = 200000;   // <= this: self-update, no approval needed
-const CAM_LIMIT  = 300000;   // <= this (and > SELF_LIMIT): CAM approval; above this: Sir approval
+const CAM_LIMIT  = 300000;   // <= this (and > SELF_LIMIT): NKAM approval; above this: Sales Director approval
 
-// ---- PIN locks. Change these to whatever CAM / Sir want their PIN to be. ----
+// ---- PIN locks. Change these to whatever NKAM / Sales Director want their PIN to be. ----
 const CAM_PIN = '2580';
 const SIR_PIN = '1947';
 let camUnlocked = false;
@@ -606,8 +606,8 @@ function tierFor(amount){
 }
 function levelTag(tier){
   if(tier === 'self') return '<span class="level-tag level-self">Self</span>';
-  if(tier === 'cam') return '<span class="level-tag level-cam">CAM</span>';
-  return '<span class="level-tag level-sir">Sir</span>';
+  if(tier === 'cam') return '<span class="level-tag level-cam">NKAM</span>';
+  return '<span class="level-tag level-sir">Sales Director</span>';
 }
 
 function collectForm(){
@@ -660,30 +660,34 @@ function updateTierPreview(){
   if(tier === 'self'){
     box.textContent = '✓ ' + fmtMoney(val) + ' is within your self-update limit — no approval needed, update directly in system.';
   } else if(tier === 'cam'){
-    box.textContent = '→ ' + fmtMoney(val) + ' needs CAM approval before you update the system.';
+    box.textContent = '→ ' + fmtMoney(val) + ' needs NKAM approval before you update the system.';
   } else {
-    box.textContent = '→ ' + fmtMoney(val) + ' needs Sir\'s approval before you update the system.';
+    box.textContent = '→ ' + fmtMoney(val) + ' needs Sales Director\'s approval before you update the system.';
   }
 }
 document.getElementById('f_reqamt').addEventListener('input', updateTierPreview);
 
 document.getElementById('btnSubmit').addEventListener('click', async ()=>{
+  const btn = document.getElementById('btnSubmit');
   const req = collectForm();
   const err = validate(req);
   if(err){ showToast(err); return; }
+  btn.disabled = true;
   try{
     await saveRequest(req);
-    clearForm();
     if(req.tier === 'self'){
       showToast(fmtMoney(req.reqamt) + ' is within the self-update range — no approval needed.');
     } else if(req.tier === 'cam'){
-      showToast('Request sent to CAM for approval.');
+      showToast('Request sent to NKAM for approval.');
     } else {
-      showToast('Request sent to Sir for approval.');
+      showToast('Request sent to Sales Director for approval.');
     }
+    clearForm();
   }catch(e){
     console.error(e);
     showToast('Could not submit — check your connection.');
+  }finally{
+    btn.disabled = false;
   }
 });
 document.getElementById('btnClear').addEventListener('click', clearForm);
@@ -898,11 +902,11 @@ function openPinModal(target){
   pinInput.value = '';
   pinError.textContent = '';
   if(target === 'cam'){
-    pinModalTitle.textContent = "CAM's PIN required";
-    pinModalText.textContent = 'Only CAM can approve or reject these requests. Enter the PIN to continue.';
+    pinModalTitle.textContent = "NKAM's PIN required";
+    pinModalText.textContent = 'Only NKAM can approve or reject these requests. Enter the PIN to continue.';
   } else {
-    pinModalTitle.textContent = "Sir's PIN required";
-    pinModalText.textContent = 'Only Sir can approve or reject these requests. Enter the PIN to continue.';
+    pinModalTitle.textContent = "Sales Director's PIN required";
+    pinModalText.textContent = 'Only Sales Director can approve or reject these requests. Enter the PIN to continue.';
   }
   pinOverlay.classList.add('show');
   setTimeout(()=>pinInput.focus(), 50);
