@@ -191,10 +191,11 @@
   select.col-filter{ min-width:70px; }
   input[type="date"].col-filter{ min-width:130px; }
   .col-filter-clear{
-    border:none; background:none; color:var(--ink-soft); cursor:pointer; font-size:13px;
-    padding:2px 4px; vertical-align:middle; margin-left:2px;
+    border:1px solid var(--line); background:#fdfcf9; color:var(--ink-soft); cursor:pointer; font-size:11.5px;
+    padding:6px 10px; vertical-align:middle; margin-left:2px; border-radius:2px; font-family:var(--sans);
   }
-  .col-filter-clear:hover{ color:var(--red); }
+  tr.filter-row .col-filter-clear{ border:none; background:none; padding:2px 4px; font-size:13px; }
+  .col-filter-clear:hover{ color:var(--red); border-color:var(--red); }
 
   .filters{ display:flex; gap:10px; padding:16px 20px 0; flex-wrap:wrap; align-items:center; }
   .filters select{ padding:8px 10px; border:1px solid var(--line); background:#fdfcf9; font-size:13px; border-radius:2px; }
@@ -464,6 +465,8 @@
     <div class="panel">
       <div class="filters">
         <input class="search" id="procSearch" placeholder="Search customer / cust code…" />
+        <input type="date" class="search" id="procDateFilter" title="Filter by date" style="min-width:150px;" />
+        <button type="button" class="col-filter-clear" id="procDateFilter_clear" title="Show all dates">Show all dates ×</button>
       </div>
       <div class="table-wrap">
         <table>
@@ -504,6 +507,8 @@
     <div class="panel">
       <div class="filters">
         <input class="search" id="camSearch" placeholder="Search customer / cust code…" />
+        <input type="date" class="search" id="camDateFilter" title="Filter by date" style="min-width:150px;" />
+        <button type="button" class="col-filter-clear" id="camDateFilter_clear" title="Show all dates">Show all dates ×</button>
       </div>
       <div class="table-wrap">
         <table>
@@ -544,6 +549,8 @@
     <div class="panel">
       <div class="filters">
         <input class="search" id="sirSearch" placeholder="Search customer / cust code…" />
+        <input type="date" class="search" id="sirDateFilter" title="Filter by date" style="min-width:150px;" />
+        <button type="button" class="col-filter-clear" id="sirDateFilter_clear" title="Show all dates">Show all dates ×</button>
       </div>
       <div class="table-wrap">
         <table>
@@ -1222,27 +1229,33 @@ function populateUserFilter(){
   select.innerHTML = '<option value="all">All users</option>' + users.map(u => '<option value="' + esc(u) + '">' + esc(u) + '</option>').join('');
   select.value = users.includes(current) ? current : 'all';
 }
-function ensureDateFilterDefault(){
-  const dateInput = document.getElementById('colf_date');
+const DAY_VIEW_DATE_FILTER_IDS = ['colf_date','procDateFilter','camDateFilter','sirDateFilter'];
+function ensureDateFilterDefault(inputId){
+  const dateInput = document.getElementById(inputId);
   if(dateInput && !dateInput.value && !dateInput.dataset.userCleared){
     dateInput.value = todayKey();
   }
 }
+function ensureAllDateFilterDefaults(){
+  DAY_VIEW_DATE_FILTER_IDS.forEach(ensureDateFilterDefault);
+}
 // Checks once a minute whether the local date has rolled over past midnight; if so,
-// today's date filter (when it's still pointing at "today") is pushed forward to the
-// new day, so the list clears and starts fresh while yesterday's entries stay saved
+// every date filter (when it's still pointing at "today") is pushed forward to the
+// new day, so each list clears and starts fresh while yesterday's entries stay saved
 // under yesterday's date, reachable via the calendar picker.
 let __lastSeenDateKey = todayKey();
 function checkMidnightRollover(){
   const nowKey = todayKey();
   if(nowKey !== __lastSeenDateKey){
-    const dateInput = document.getElementById('colf_date');
-    if(dateInput && (dateInput.value === __lastSeenDateKey || !dateInput.value)){
-      dateInput.value = nowKey;
-      dateInput.dataset.userCleared = '';
-    }
+    DAY_VIEW_DATE_FILTER_IDS.forEach(id=>{
+      const dateInput = document.getElementById(id);
+      if(dateInput && (dateInput.value === __lastSeenDateKey || !dateInput.value)){
+        dateInput.value = nowKey;
+        dateInput.dataset.userCleared = '';
+      }
+    });
     __lastSeenDateKey = nowKey;
-    renderEntryTable();
+    renderAll();
   }
 }
 setInterval(checkMidnightRollover, 30000);
@@ -1250,7 +1263,7 @@ setInterval(checkMidnightRollover, 30000);
 function renderEntryTable(){
   populateCfaFilter();
   populateUserFilter();
-  ensureDateFilterDefault();
+  ensureDateFilterDefault('colf_date');
   const filter = document.getElementById('entryFilterStatus').value;
   const cfaFilter = document.getElementById('entryFilterCfa').value;
   const userFilter = document.getElementById('entryFilterUser').value;
@@ -1398,8 +1411,10 @@ function downloadCSV(){
 }
 document.getElementById('btnDownload').addEventListener('click', downloadCSV);
 
-function renderApprovalQueue(tier, searchId, pendingBodyId, pendingCountId, pendingEmptyId, histBodyId, histCountId, histEmptyId){
+function renderApprovalQueue(tier, searchId, pendingBodyId, pendingCountId, pendingEmptyId, histBodyId, histCountId, histEmptyId, dateFilterId){
+  if(dateFilterId) ensureDateFilterDefault(dateFilterId);
   const search = document.getElementById(searchId).value.trim().toLowerCase();
+  const dateFilter = dateFilterId ? document.getElementById(dateFilterId).value : '';
   let pending = requests.filter(r => r.status === 'Pending' && r.tier === tier);
   if(search) pending = pending.filter(r =>
     r.custname.toLowerCase().includes(search) || r.custcd.toLowerCase().includes(search));
@@ -1457,8 +1472,9 @@ function renderApprovalQueue(tier, searchId, pendingBodyId, pendingCountId, pend
     });
   });
 
-  const hist = requests.filter(r => (r.status === 'Approved' || r.status === 'Rejected' || r.status === 'Updated') && r.tier === tier && (r.decidedByRole === tier || !r.decidedByRole))
+  let hist = requests.filter(r => (r.status === 'Approved' || r.status === 'Rejected' || r.status === 'Updated') && r.tier === tier && (r.decidedByRole === tier || !r.decidedByRole))
     .sort((a,b)=> new Date(b.decidedAt || 0) - new Date(a.decidedAt || 0));
+  if(dateFilter) hist = hist.filter(r => localDateKey(r.decidedAt) === dateFilter);
   document.getElementById(histCountId).textContent = '(' + hist.length + ')';
   const histBody = document.getElementById(histBodyId);
   histBody.innerHTML = '';
@@ -1481,7 +1497,9 @@ function renderApprovalQueue(tier, searchId, pendingBodyId, pendingCountId, pend
 }
 
 function renderProcTable(){
+  ensureDateFilterDefault('procDateFilter');
   const search = document.getElementById('procSearch').value.trim().toLowerCase();
+  const dateFilter = document.getElementById('procDateFilter').value;
   let pending = requests.filter(r => r.status === 'Pending-Processing');
   if(search) pending = pending.filter(r =>
     r.custname.toLowerCase().includes(search) || r.custcd.toLowerCase().includes(search));
@@ -1548,8 +1566,9 @@ function renderProcTable(){
     });
   });
 
-  const hist = requests.filter(r => r.procDecidedAt)
+  let hist = requests.filter(r => r.procDecidedAt)
     .sort((a,b)=> new Date(b.procDecidedAt || 0) - new Date(a.procDecidedAt || 0));
+  if(dateFilter) hist = hist.filter(r => localDateKey(r.procDecidedAt) === dateFilter);
   document.getElementById('procHistCount').textContent = '(' + hist.length + ')';
   const histBody = document.getElementById('procHistBody');
   histBody.innerHTML = '';
@@ -1573,7 +1592,9 @@ function renderProcTable(){
 }
 
 function renderCamTable(){
+  ensureDateFilterDefault('camDateFilter');
   const search = document.getElementById('camSearch').value.trim().toLowerCase();
+  const dateFilter = document.getElementById('camDateFilter').value;
   // NKAM handles two kinds of pending items:
   //  - tier 'cam' (₹2,00,001–₹3,00,000): NKAM's decision is final.
   //  - tier 'sir' with status 'Pending-Cam' (above ₹3,00,000): NKAM must sign off first;
@@ -1661,11 +1682,12 @@ function renderCamTable(){
   });
 
   // History: cam-tier final decisions, plus sir-tier items NKAM has signed off on (whatever happens next).
-  const hist = requests.filter(r =>
+  let hist = requests.filter(r =>
       (r.tier === 'cam' && (r.status === 'Approved' || r.status === 'Rejected' || r.status === 'Updated') && (r.decidedByRole === 'cam' || !r.decidedByRole)) ||
       (r.tier === 'sir' && (r.camApprovedAt || (r.decidedByRole === 'cam')))
     )
     .sort((a,b)=> new Date((b.camApprovedAt || b.decidedAt) || 0) - new Date((a.camApprovedAt || a.decidedAt) || 0));
+  if(dateFilter) hist = hist.filter(r => localDateKey(r.camApprovedAt || r.decidedAt) === dateFilter);
   document.getElementById('camHistCount').textContent = '(' + hist.length + ')';
   const histBody = document.getElementById('camHistBody');
   histBody.innerHTML = '';
@@ -1693,7 +1715,7 @@ function renderCamTable(){
   });
 }
 function renderSirTable(){
-  renderApprovalQueue('sir', 'sirSearch', 'sirTableBody', 'sirPendingCount', 'sirEmpty', 'sirHistBody', 'sirHistCount', 'sirHistEmpty');
+  renderApprovalQueue('sir', 'sirSearch', 'sirTableBody', 'sirPendingCount', 'sirEmpty', 'sirHistBody', 'sirHistCount', 'sirHistEmpty', 'sirDateFilter');
 }
 
 function renderAll(){
@@ -1724,6 +1746,22 @@ document.getElementById('colf_level').addEventListener('change', renderEntryTabl
 document.getElementById('procSearch').addEventListener('input', renderProcTable);
 document.getElementById('camSearch').addEventListener('input', renderCamTable);
 document.getElementById('sirSearch').addEventListener('input', renderSirTable);
+
+function wireDateFilter(inputId, clearId, renderFn){
+  const input = document.getElementById(inputId);
+  input.addEventListener('change', (e)=>{
+    e.target.dataset.userCleared = e.target.value ? '' : '1';
+    renderFn();
+  });
+  document.getElementById(clearId).addEventListener('click', ()=>{
+    input.value = '';
+    input.dataset.userCleared = '1';
+    renderFn();
+  });
+}
+wireDateFilter('procDateFilter', 'procDateFilter_clear', renderProcTable);
+wireDateFilter('camDateFilter', 'camDateFilter_clear', renderCamTable);
+wireDateFilter('sirDateFilter', 'sirDateFilter_clear', renderSirTable);
 
 function switchTab(tab){
   document.getElementById('tabEntry').classList.toggle('active', tab==='entry');
