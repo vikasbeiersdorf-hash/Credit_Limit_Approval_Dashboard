@@ -141,6 +141,10 @@
   .btn-reject:hover{ background:#832f2f; }
   .btn-mark{ background:var(--purple); color:#fff; }
   .btn-mark:hover{ background:#463b6e; }
+  .admin-col{ display:none; }
+  body.is-admin .admin-col{ display:table-cell; }
+  .btn-delete{ background:#fdecea; color:var(--red); border:1px solid #f3c6c1; }
+  .btn-delete:hover{ background:#fadcd8; }
   .btn-small{ padding:6px 12px; font-size:12px; }
 
   /* TABLE */
@@ -386,6 +390,9 @@
         <select id="entryFilterCfa">
           <option value="all">All CFA</option>
         </select>
+        <select id="entryFilterUser">
+          <option value="all">All users</option>
+        </select>
         <div class="spacer"></div>
         <button class="btn btn-ghost btn-small" id="btnDownload">⬇ Download data (CSV)</button>
       </div>
@@ -395,7 +402,7 @@
             <tr>
               <th>Date</th><th>Posted By</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
               <th class="num">Limit Now</th><th class="num">Outstanding</th>
-              <th class="num">Req. Add. Credit</th><th class="num">Req. Add. Invoice</th><th>Level</th><th>Status</th><th>Remark</th><th>Action</th>
+              <th class="num">Req. Add. Credit</th><th class="num">Req. Add. Invoice</th><th>Level</th><th>Status</th><th>Remark</th><th>Action</th><th class="admin-col">Delete</th>
             </tr>
           </thead>
           <tbody id="entryTableBody"></tbody>
@@ -605,13 +612,18 @@ let camUnlocked = false;
 let sirUnlocked = false;
 
 // ---- User accounts. Add / remove / edit users here — one line per person. ----
-// { username: 'login id (any case)', password: 'their password', name: 'Full name shown on entries' }
+// role: 'admin' | 'processing' | 'cam' (NKAM) | 'sir' (Sales Director) | 'warehouse'
+//   - admin, processing, cam, sir → see requests from ALL locations.
+//   - warehouse → only sees requests raised from their own location (set below).
+// location: only matters for role:'warehouse' users — set it to that warehouse/CFA location name.
+//   (leave location: '' for admin / processing / cam / sir users)
 const USERS = [
-  { username: 'admin',   password: 'admin123',   name: 'Admin' },
-  { username: 'mumbai',  password: 'mumbai123',  name: 'Mumbai Warehouse' },
-  { username: 'delhi',   password: 'delhi123',   name: 'Delhi Warehouse' },
-  { username: 'nkam',    password: 'nkam123',    name: 'NKAM' },
-  { username: 'sd',      password: 'sd123',      name: 'Sales Director' },
+  { username: 'admin',   password: 'admin123',   name: 'Admin',            role: 'admin',      location: '' },
+  { username: 'proc',    password: 'proc123',    name: 'Processing Team',  role: 'processing', location: '' },
+  { username: 'nkam',    password: 'nkam123',    name: 'NKAM',             role: 'cam',         location: '' },
+  { username: 'sd',      password: 'sd123',      name: 'Sales Director',   role: 'sir',         location: '' },
+  { username: 'mumbai',  password: 'mumbai123',  name: 'Mumbai Warehouse', role: 'warehouse',  location: 'Mumbai' },
+  { username: 'delhi',   password: 'delhi123',   name: 'Delhi Warehouse',  role: 'warehouse',  location: 'Delhi' },
 ];
 let currentUser = null;
 
@@ -636,14 +648,14 @@ async function initFirebase(){
 
   try{
     const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
-    const { getFirestore, collection, onSnapshot, query, orderBy, doc, setDoc, updateDoc } =
+    const { getFirestore, collection, onSnapshot, query, orderBy, doc, setDoc, updateDoc, deleteDoc } =
       await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
 
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     firestoreReady = true;
 
-    window.__fs = { collection, onSnapshot, query, orderBy, doc, setDoc, updateDoc };
+    window.__fs = { collection, onSnapshot, query, orderBy, doc, setDoc, updateDoc, deleteDoc };
 
     const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
     onSnapshot(q, (snapshot) => {
@@ -696,6 +708,16 @@ async function updateRequest(id, patch){
   } else {
     const req = requests.find(r => r.id === id);
     if(req) Object.assign(req, patch);
+    saveLocalFallback();
+    renderAll();
+  }
+}
+async function deleteRequest(id){
+  if(firestoreReady){
+    const { doc, deleteDoc } = window.__fs;
+    await deleteDoc(doc(db, COLLECTION_NAME, id));
+  } else {
+    requests = requests.filter(r => r.id !== id);
     saveLocalFallback();
     renderAll();
   }
@@ -773,6 +795,7 @@ function showDashboardFor(user){
   document.getElementById('currentUserBadge').style.display = 'inline-flex';
   document.getElementById('currentUserName').textContent = user.name;
   document.getElementById('btnLogout').style.display = 'inline-block';
+  renderAll();
 }
 function tryLogin(){
   const u = document.getElementById('loginUsername').value.trim();
@@ -801,6 +824,7 @@ function logout(dueToIdle){
   document.getElementById('dashboardRoot').style.display = 'none';
   document.getElementById('currentUserBadge').style.display = 'none';
   document.getElementById('btnLogout').style.display = 'none';
+  document.body.classList.remove('is-admin');
   document.getElementById('loginUsername').value = '';
   document.getElementById('loginPassword').value = '';
   document.getElementById('loginError').textContent = dueToIdle
@@ -865,6 +889,7 @@ function buildRequestObject(fields){
     status: 'Pending-Processing',
     postedByUsername: currentUser ? currentUser.username : '',
     postedByName: currentUser ? currentUser.name : 'Unknown',
+    postedByLocation: currentUser ? (currentUser.location || '') : '',
     procRemark: '',
     procDecidedAt: null,
     procDecidedByName: '',
@@ -1103,30 +1128,65 @@ document.getElementById('bulkConfirm').addEventListener('click', async ()=>{
   showToast(success + ' entr' + (success === 1 ? 'y' : 'ies') + ' uploaded and sent to Processing Team' + (fail ? (', ' + fail + ' failed') : '') + '.');
 });
 
+function visibleRequestsForCurrentUser(){
+  // Warehouse users only see requests raised from their own location.
+  // Admin / Processing Team / NKAM / Sales Director see requests from every location.
+  if(currentUser && currentUser.role === 'warehouse'){
+    return requests.filter(r => (r.postedByLocation || '') === currentUser.location);
+  }
+  return requests.slice();
+}
 function populateCfaFilter(){
   const select = document.getElementById('entryFilterCfa');
   const current = select.value;
-  const cfas = Array.from(new Set(requests.map(r => r.cfa).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+  const base = visibleRequestsForCurrentUser();
+  const cfas = Array.from(new Set(base.map(r => r.cfa).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
   select.innerHTML = '<option value="all">All CFA</option>' + cfas.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('');
   select.value = cfas.includes(current) ? current : 'all';
 }
+function populateUserFilter(){
+  const select = document.getElementById('entryFilterUser');
+  const current = select.value;
+  const base = visibleRequestsForCurrentUser();
+  const users = Array.from(new Set(base.map(r => r.postedByName).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+  select.innerHTML = '<option value="all">All users</option>' + users.map(u => '<option value="' + esc(u) + '">' + esc(u) + '</option>').join('');
+  select.value = users.includes(current) ? current : 'all';
+}
 function renderEntryTable(){
   populateCfaFilter();
+  populateUserFilter();
   const filter = document.getElementById('entryFilterStatus').value;
   const cfaFilter = document.getElementById('entryFilterCfa').value;
-  let list = requests.slice();
+  const userFilter = document.getElementById('entryFilterUser').value;
+  const isAdmin = currentUser && currentUser.role === 'admin';
+
+  let list = visibleRequestsForCurrentUser();
   if(filter !== 'all') list = list.filter(r => r.status === filter);
   if(cfaFilter !== 'all') list = list.filter(r => r.cfa === cfaFilter);
+  if(userFilter !== 'all') list = list.filter(r => r.postedByName === userFilter);
+
   document.getElementById('allCount').textContent = '(' + list.length + ')';
   const body = document.getElementById('entryTableBody');
   body.innerHTML = '';
   document.getElementById('entryEmpty').style.display = list.length ? 'none' : 'block';
+  document.body.classList.toggle('is-admin', !!isAdmin);
+
   list.forEach(r=>{
     const tr = document.createElement('tr');
     const needsMarking = (r.status === 'Self-Update' || r.status === 'Approved');
-    const actionCell = needsMarking
-      ? '<button class="btn btn-mark btn-small" data-mark-id="' + r.id + '">Mark as updated</button>'
-      : (r.status === 'Updated' ? ('Updated ' + fmtDate(r.updatedAt)) : '—');
+    let actionCell;
+    if(needsMarking && isAdmin){
+      actionCell = '<button class="btn btn-mark btn-small" data-mark-id="' + r.id + '">Mark as updated</button>';
+    } else if(needsMarking){
+      actionCell = '<span style="color:var(--ink-soft); font-size:12px;">Awaiting Admin</span>';
+    } else if(r.status === 'Updated'){
+      actionCell = 'Updated ' + fmtDate(r.updatedAt) + (r.updatedByName ? (' by ' + esc(r.updatedByName)) : '');
+    } else {
+      actionCell = '—';
+    }
+    const deleteCell = isAdmin
+      ? '<button class="btn btn-delete btn-small" data-delete-id="' + r.id + '">Delete</button>'
+      : '';
     tr.innerHTML =
       '<td>' + fmtDate(r.createdAt) + '</td>' +
       '<td>' + esc(r.postedByName || '—') + '</td>' +
@@ -1140,12 +1200,14 @@ function renderEntryTable(){
       '<td>' + levelTag(r.tier) + '</td>' +
       '<td>' + statusPill(r.status) + '</td>' +
       '<td>' + esc(r.approverRemark || r.procRemark || r.whRemark || '—') + '</td>' +
-      '<td>' + actionCell + '</td>';
+      '<td>' + actionCell + '</td>' +
+      '<td class="admin-col">' + deleteCell + '</td>';
     body.appendChild(tr);
   });
 
   body.querySelectorAll('button[data-mark-id]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
+      if(!currentUser || currentUser.role !== 'admin'){ showToast('Only Admin can mark requests as updated.'); return; }
       const id = btn.getAttribute('data-mark-id');
       const req = requests.find(r => r.id === id);
       if(!req) return;
@@ -1157,6 +1219,24 @@ function renderEntryTable(){
       }catch(e){
         console.error(e);
         showToast('Could not update — check your connection.');
+      }
+    });
+  });
+
+  body.querySelectorAll('button[data-delete-id]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!currentUser || currentUser.role !== 'admin'){ showToast('Only Admin can delete requests.'); return; }
+      const id = btn.getAttribute('data-delete-id');
+      const req = requests.find(r => r.id === id);
+      if(!req) return;
+      const ok = confirm('Permanently delete this request for ' + req.custname + '? This cannot be undone.');
+      if(!ok) return;
+      try{
+        await deleteRequest(id);
+        showToast(req.custname + '\'s request was deleted.');
+      }catch(e){
+        console.error(e);
+        showToast('Could not delete — check your connection.');
       }
     });
   });
@@ -1371,6 +1451,7 @@ function renderAll(){
 
 document.getElementById('entryFilterStatus').addEventListener('change', renderEntryTable);
 document.getElementById('entryFilterCfa').addEventListener('change', renderEntryTable);
+document.getElementById('entryFilterUser').addEventListener('change', renderEntryTable);
 document.getElementById('procSearch').addEventListener('input', renderProcTable);
 document.getElementById('camSearch').addEventListener('input', renderCamTable);
 document.getElementById('sirSearch').addEventListener('input', renderSirTable);
