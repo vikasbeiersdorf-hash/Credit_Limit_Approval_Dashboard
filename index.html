@@ -180,6 +180,22 @@
   }
   .empty{ padding:40px 20px; text-align:center; color:var(--ink-soft); font-family:var(--mono); font-size:13px; }
 
+  tr.filter-row th{
+    background:#f3f0e6; padding:6px 8px; border-bottom:2px solid var(--navy);
+  }
+  .col-filter{
+    width:100%; box-sizing:border-box; padding:5px 6px; font-size:11.5px; font-weight:400;
+    text-transform:none; letter-spacing:normal; font-family:var(--sans);
+    border:1px solid var(--line); background:#fff; border-radius:2px; color:var(--ink);
+  }
+  select.col-filter{ min-width:70px; }
+  input[type="date"].col-filter{ min-width:130px; }
+  .col-filter-clear{
+    border:none; background:none; color:var(--ink-soft); cursor:pointer; font-size:13px;
+    padding:2px 4px; vertical-align:middle; margin-left:2px;
+  }
+  .col-filter-clear:hover{ color:var(--red); }
+
   .filters{ display:flex; gap:10px; padding:16px 20px 0; flex-wrap:wrap; align-items:center; }
   .filters select{ padding:8px 10px; border:1px solid var(--line); background:#fdfcf9; font-size:13px; border-radius:2px; }
   .filters .spacer{ flex:1; }
@@ -292,7 +308,7 @@
   <div class="rules-strip">
     <div class="rule-chip self"><b>Up to ₹2,00,000</b>Needs Processing Team approval, then you can update directly in the system.</div>
     <div class="rule-chip cam"><b>₹2,00,001 – ₹3,00,000</b>Needs Processing Team approval, then NKAM approval before updating.</div>
-    <div class="rule-chip sir"><b>Above ₹3,00,000</b>Needs Processing Team approval, then Sales Director's approval before updating.</div>
+    <div class="rule-chip sir"><b>Above ₹3,00,000</b>Needs Processing Team approval, then NKAM approval, and only after NKAM approves does it go to the Sales Director for final approval.</div>
   </div>
 
   <div class="tabs">
@@ -306,7 +322,7 @@
     </div>
     <div class="tab" data-tab="cam" id="tabCam">
       NKAM Approval
-      <span class="sub">₹2L – ₹3L requests</span>
+      <span class="sub">₹2L – ₹3L, + sign-off on above ₹3L</span>
     </div>
     <div class="tab" data-tab="sir" id="tabSir">
       Sales Director Approval
@@ -382,6 +398,7 @@
           <option value="Pending-Processing">Pending (Processing Team)</option>
           <option value="Processing-Rejected">Rejected by Processing Team</option>
           <option value="Self-Update">Self-Update (not yet updated)</option>
+          <option value="Pending-Cam">Pending (awaiting NKAM sign-off)</option>
           <option value="Pending">Pending (NKAM / Sales Director)</option>
           <option value="Approved">Approved (not yet updated)</option>
           <option value="Rejected">Rejected</option>
@@ -402,12 +419,40 @@
             <tr>
               <th>Date</th><th>Posted By</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
               <th class="num">Limit Now</th><th class="num">Outstanding</th>
-              <th class="num">Req. Add. Credit</th><th class="num">Req. Add. Invoice</th><th>Level</th><th>Status</th><th>Remark</th><th>Action</th><th class="admin-col">Delete</th>
+              <th class="num">Req. Add. Credit</th><th class="num">Req. Add. Invoice</th><th>Level</th><th>Status</th><th>Decided By (User ID)</th><th>Remark</th><th>Action</th><th class="admin-col">Delete</th>
+            </tr>
+            <tr class="filter-row">
+              <th>
+                <input type="date" class="col-filter" id="colf_date" title="Filter by date" />
+                <button type="button" class="col-filter-clear" id="colf_date_clear" title="Show all dates">×</button>
+              </th>
+              <th><input type="text" class="col-filter" id="colf_postedby" placeholder="Filter…" /></th>
+              <th><input type="text" class="col-filter" id="colf_cfa" placeholder="Filter…" /></th>
+              <th><input type="text" class="col-filter" id="colf_custcd" placeholder="Filter…" /></th>
+              <th><input type="text" class="col-filter" id="colf_custname" placeholder="Filter…" /></th>
+              <th></th>
+              <th></th>
+              <th></th>
+              <th></th>
+              <th>
+                <select class="col-filter" id="colf_level">
+                  <option value="all">All</option>
+                  <option value="self">Self</option>
+                  <option value="cam">NKAM</option>
+                  <option value="sir">Sales Director</option>
+                </select>
+              </th>
+              <th></th>
+              <th><input type="text" class="col-filter" id="colf_decidedby" placeholder="Filter…" /></th>
+              <th></th>
+              <th></th>
+              <th class="admin-col"></th>
             </tr>
           </thead>
           <tbody id="entryTableBody"></tbody>
         </table>
         <div class="empty" id="entryEmpty" style="display:none;">No requests yet. Fill the form above to raise one.</div>
+        <div class="hint" style="padding:8px 20px 0;">Showing the selected date by default. The date filter resets to today automatically after midnight — pick an earlier date to look something up.</div>
       </div>
     </div>
   </div>
@@ -442,7 +487,7 @@
           <thead>
             <tr>
               <th>Date</th><th>Posted By</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
-              <th class="num">Req. Add. Credit</th><th>Next level</th><th>Status</th><th>Processing Remark</th><th>Decided By</th><th>Decided</th>
+              <th class="num">Req. Add. Credit</th><th>Next level</th><th>Status</th><th>Processing Remark</th><th>Decided By (User ID)</th><th>Decided</th>
             </tr>
           </thead>
           <tbody id="procHistBody"></tbody>
@@ -455,7 +500,7 @@
   <!-- NKAM VIEW -->
   <div id="viewCam" style="display:none;">
     <div class="section-title">NKAM pending approvals <span class="count" id="camPendingCount"></span></div>
-    <div class="hint">Requests between ₹2,00,001 and ₹3,00,000.</div>
+    <div class="hint">Requests between ₹2,00,001 and ₹3,00,000 (final approval here) plus requests above ₹3,00,000 (your sign-off is required before they go to the Sales Director).</div>
     <div class="panel">
       <div class="filters">
         <input class="search" id="camSearch" placeholder="Search customer / cust code…" />
@@ -466,7 +511,7 @@
             <tr>
               <th>Date</th><th>Posted By</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
               <th class="num">Limit Now</th><th class="num">Outstanding</th>
-              <th class="num">Req. Add. Credit</th><th>Warehouse Remark</th><th>Decision</th>
+              <th class="num">Req. Add. Credit</th><th>Next</th><th>Warehouse Remark</th><th>Decision</th>
             </tr>
           </thead>
           <tbody id="camTableBody"></tbody>
@@ -482,7 +527,7 @@
           <thead>
             <tr>
               <th>Date</th><th>Posted By</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
-              <th class="num">Req. Add. Credit</th><th>Status</th><th>NKAM Remark</th><th>Decided By</th><th>Decided</th>
+              <th class="num">Req. Add. Credit</th><th>Status</th><th>NKAM Remark</th><th>Decided By (User ID)</th><th>Decided</th>
             </tr>
           </thead>
           <tbody id="camHistBody"></tbody>
@@ -495,7 +540,7 @@
   <!-- SALES DIRECTOR VIEW -->
   <div id="viewSir" style="display:none;">
     <div class="section-title">Sales Director's pending approvals <span class="count" id="sirPendingCount"></span></div>
-    <div class="hint">Requests above ₹3,00,000.</div>
+    <div class="hint">Requests above ₹3,00,000 — shown here only after NKAM has already signed off.</div>
     <div class="panel">
       <div class="filters">
         <input class="search" id="sirSearch" placeholder="Search customer / cust code…" />
@@ -506,7 +551,7 @@
             <tr>
               <th>Date</th><th>Posted By</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
               <th class="num">Limit Now</th><th class="num">Outstanding</th>
-              <th class="num">Req. Add. Credit</th><th>Warehouse Remark</th><th>Decision</th>
+              <th class="num">Req. Add. Credit</th><th>NKAM Sign-off</th><th>Warehouse Remark</th><th>Decision</th>
             </tr>
           </thead>
           <tbody id="sirTableBody"></tbody>
@@ -522,7 +567,7 @@
           <thead>
             <tr>
               <th>Date</th><th>Posted By</th><th>CFA</th><th>Cust Code</th><th>Customer</th>
-              <th class="num">Req. Add. Credit</th><th>Status</th><th>Sales Director's Remark</th><th>Decided By</th><th>Decided</th>
+              <th class="num">Req. Add. Credit</th><th>Status</th><th>Sales Director's Remark</th><th>Decided By (User ID)</th><th>Decided</th>
             </tr>
           </thead>
           <tbody id="sirHistBody"></tbody>
@@ -733,6 +778,29 @@ function showToast(msg){
 }
 function uid(){ return 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
 
+// ---- Local date-key helpers (for the day-view / calendar date filter) ----
+function localDateKey(d){
+  const dt = d instanceof Date ? d : new Date(d);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth()+1).padStart(2,'0');
+  const day = String(dt.getDate()).padStart(2,'0');
+  return y + '-' + m + '-' + day;
+}
+function todayKey(){ return localDateKey(new Date()); }
+function decidedByLabel(name, username){
+  if(!name && !username) return '—';
+  if(username) return esc(name || username) + ' (' + esc(username) + ')';
+  return esc(name);
+}
+function currentDecider(r){
+  // Whoever's decision the row is currently waiting on / was last touched by, with their user id.
+  if(r.status === 'Updated') return { name: r.updatedByName, username: r.updatedByUsername };
+  if(r.status === 'Approved' || r.status === 'Rejected') return { name: r.decidedByName, username: r.decidedByUsername };
+  if(r.status === 'Pending' && r.tier === 'sir' && r.camApprovedAt) return { name: r.camApprovedByName, username: r.camApprovedByUsername };
+  if(r.status === 'Self-Update' || r.status === 'Processing-Rejected') return { name: r.procDecidedByName, username: r.procDecidedByUsername };
+  return { name: '', username: '' };
+}
+
 // ---- Session persistence + 10-minute idle auto-lock ----
 // Change this to adjust how many minutes of inactivity before it locks again.
 const IDLE_LIMIT_MINUTES = 10;
@@ -886,11 +954,19 @@ function buildRequestObject(fields){
     procRemark: '',
     procDecidedAt: null,
     procDecidedByName: '',
+    procDecidedByUsername: '',
     approverRemark: '',
     createdAt: new Date().toISOString(),
     decidedAt: null,
     decidedByName: '',
-    updatedAt: null
+    decidedByUsername: '',
+    decidedByRole: '',
+    camApprovedAt: null,
+    camApprovedByName: '',
+    camApprovedByUsername: '',
+    camRemark: '',
+    updatedAt: null,
+    updatedByUsername: ''
   };
 }
 function collectForm(){
@@ -936,7 +1012,7 @@ function updateTierPreview(){
   } else if(tier === 'cam'){
     box.textContent = '→ ' + fmtMoney(val) + ' needs Processing Team approval, then NKAM approval before you update the system.';
   } else {
-    box.textContent = '→ ' + fmtMoney(val) + ' needs Processing Team approval, then Sales Director\'s approval before you update the system.';
+    box.textContent = '→ ' + fmtMoney(val) + ' needs Processing Team approval, then NKAM approval, then Sales Director\'s approval before you update the system.';
   }
 }
 document.getElementById('f_reqamt').addEventListener('input', updateTierPreview);
@@ -962,7 +1038,7 @@ document.getElementById('btnSubmit').addEventListener('click', async ()=>{
 document.getElementById('btnClear').addEventListener('click', clearForm);
 
 function renderCounts(){
-  document.getElementById('cntPending').textContent = requests.filter(r=>r.status==='Pending' || r.status==='Pending-Processing').length;
+  document.getElementById('cntPending').textContent = requests.filter(r=>r.status==='Pending' || r.status==='Pending-Processing' || r.status==='Pending-Cam').length;
   document.getElementById('cntApproved').textContent = requests.filter(r=>r.status==='Approved').length;
   document.getElementById('cntRejected').textContent = requests.filter(r=>r.status==='Rejected' || r.status==='Processing-Rejected').length;
   document.getElementById('cntUpdated').textContent = requests.filter(r=>r.status==='Updated').length;
@@ -972,6 +1048,7 @@ function statusPill(status){
   const map = {
     'Pending-Processing':'st-pending',
     'Processing-Rejected':'st-rejected',
+    'Pending-Cam':'st-pending',
     'Pending':'st-pending',
     'Approved':'st-approved',
     'Rejected':'st-rejected',
@@ -1145,18 +1222,62 @@ function populateUserFilter(){
   select.innerHTML = '<option value="all">All users</option>' + users.map(u => '<option value="' + esc(u) + '">' + esc(u) + '</option>').join('');
   select.value = users.includes(current) ? current : 'all';
 }
+function ensureDateFilterDefault(){
+  const dateInput = document.getElementById('colf_date');
+  if(dateInput && !dateInput.value && !dateInput.dataset.userCleared){
+    dateInput.value = todayKey();
+  }
+}
+// Checks once a minute whether the local date has rolled over past midnight; if so,
+// today's date filter (when it's still pointing at "today") is pushed forward to the
+// new day, so the list clears and starts fresh while yesterday's entries stay saved
+// under yesterday's date, reachable via the calendar picker.
+let __lastSeenDateKey = todayKey();
+function checkMidnightRollover(){
+  const nowKey = todayKey();
+  if(nowKey !== __lastSeenDateKey){
+    const dateInput = document.getElementById('colf_date');
+    if(dateInput && (dateInput.value === __lastSeenDateKey || !dateInput.value)){
+      dateInput.value = nowKey;
+      dateInput.dataset.userCleared = '';
+    }
+    __lastSeenDateKey = nowKey;
+    renderEntryTable();
+  }
+}
+setInterval(checkMidnightRollover, 30000);
+
 function renderEntryTable(){
   populateCfaFilter();
   populateUserFilter();
+  ensureDateFilterDefault();
   const filter = document.getElementById('entryFilterStatus').value;
   const cfaFilter = document.getElementById('entryFilterCfa').value;
   const userFilter = document.getElementById('entryFilterUser').value;
   const isAdmin = currentUser && currentUser.role === 'admin';
 
+  const colDate = document.getElementById('colf_date').value;
+  const colPostedBy = document.getElementById('colf_postedby').value.trim().toLowerCase();
+  const colCfa = document.getElementById('colf_cfa').value.trim().toLowerCase();
+  const colCustcd = document.getElementById('colf_custcd').value.trim().toLowerCase();
+  const colCustname = document.getElementById('colf_custname').value.trim().toLowerCase();
+  const colLevel = document.getElementById('colf_level').value;
+  const colDecidedBy = document.getElementById('colf_decidedby').value.trim().toLowerCase();
+
   let list = visibleRequestsForCurrentUser();
   if(filter !== 'all') list = list.filter(r => r.status === filter);
   if(cfaFilter !== 'all') list = list.filter(r => r.cfa === cfaFilter);
   if(userFilter !== 'all') list = list.filter(r => r.postedByName === userFilter);
+  if(colDate) list = list.filter(r => localDateKey(r.createdAt) === colDate);
+  if(colPostedBy) list = list.filter(r => (r.postedByName || '').toLowerCase().includes(colPostedBy));
+  if(colCfa) list = list.filter(r => (r.cfa || '').toLowerCase().includes(colCfa));
+  if(colCustcd) list = list.filter(r => (r.custcd || '').toLowerCase().includes(colCustcd));
+  if(colCustname) list = list.filter(r => (r.custname || '').toLowerCase().includes(colCustname));
+  if(colLevel !== 'all') list = list.filter(r => r.tier === colLevel);
+  if(colDecidedBy) list = list.filter(r => {
+    const d = currentDecider(r);
+    return ((d.name||'') + ' ' + (d.username||'')).toLowerCase().includes(colDecidedBy);
+  });
 
   document.getElementById('allCount').textContent = '(' + list.length + ')';
   const body = document.getElementById('entryTableBody');
@@ -1180,6 +1301,7 @@ function renderEntryTable(){
     const deleteCell = isAdmin
       ? '<button class="btn btn-delete btn-small" data-delete-id="' + r.id + '">Delete</button>'
       : '';
+    const decider = currentDecider(r);
     tr.innerHTML =
       '<td>' + fmtDate(r.createdAt) + '</td>' +
       '<td>' + esc(r.postedByName || '—') + '</td>' +
@@ -1192,6 +1314,7 @@ function renderEntryTable(){
       '<td class="num">' + esc(r.reqinv || '—') + '</td>' +
       '<td>' + levelTag(r.tier) + '</td>' +
       '<td>' + statusPill(r.status) + '</td>' +
+      '<td>' + decidedByLabel(decider.name, decider.username) + '</td>' +
       '<td>' + esc(r.approverRemark || r.procRemark || r.whRemark || '—') + '</td>' +
       '<td>' + actionCell + '</td>' +
       '<td class="admin-col">' + deleteCell + '</td>';
@@ -1207,7 +1330,7 @@ function renderEntryTable(){
       const ok = confirm('Confirm that you have updated this credit limit in the system for ' + req.custname + '?');
       if(!ok) return;
       try{
-        await updateRequest(id, { status: 'Updated', updatedAt: new Date().toISOString(), updatedByName: currentUser ? currentUser.name : '' });
+        await updateRequest(id, { status: 'Updated', updatedAt: new Date().toISOString(), updatedByName: currentUser ? currentUser.name : '', updatedByUsername: currentUser ? currentUser.username : '' });
         showToast(req.custname + ' marked as updated in system.');
       }catch(e){
         console.error(e);
@@ -1241,15 +1364,24 @@ function csvEscape(val){
   return s;
 }
 function downloadCSV(){
-  const headers = ['Date','Posted By','CFA','Cust Code','Customer','System Credit Days','Agreement Credit Days',
+  const headers = ['Date','Posted By (User ID)','CFA','Cust Code','Customer','System Credit Days','Agreement Credit Days',
     'Limit Now','Outstanding','Required Additional Credit','Required Additional Invoice',
-    'Level','Status','Warehouse Remark','Processing Remark','Processing Decided By','Processing Decided At',
-    'Approver Remark','Decided By','Decided At','Updated By','Updated At'];
+    'Level','Status','Warehouse Remark','Processing Remark','Processing Decided By (User ID)','Processing Decided At',
+    'NKAM Sign-off By (User ID)','NKAM Sign-off At','NKAM Sign-off Remark',
+    'Approver Remark','Decided By (User ID)','Decided At','Updated By (User ID)','Updated At'];
   const rows = requests.map(r => [
-    fmtDate(r.createdAt), r.postedByName, r.cfa, r.custcd, r.custname, r.sysdays, r.agrdays,
+    fmtDate(r.createdAt), (r.postedByName || '') + (r.postedByUsername ? (' (' + r.postedByUsername + ')') : ''), r.cfa, r.custcd, r.custname, r.sysdays, r.agrdays,
     r.limitnow, r.outstanding, r.reqamt, r.reqinv,
-    r.tier, r.status, r.whRemark, r.procRemark, r.procDecidedByName, (r.procDecidedAt ? fmtDate(r.procDecidedAt) : ''),
-    r.approverRemark, r.decidedByName, r.decidedAt ? fmtDate(r.decidedAt) : '', r.updatedByName, r.updatedAt ? fmtDate(r.updatedAt) : ''
+    r.tier, r.status, r.whRemark, r.procRemark,
+    (r.procDecidedByName || '') + (r.procDecidedByUsername ? (' (' + r.procDecidedByUsername + ')') : ''),
+    (r.procDecidedAt ? fmtDate(r.procDecidedAt) : ''),
+    (r.camApprovedByName || '') + (r.camApprovedByUsername ? (' (' + r.camApprovedByUsername + ')') : ''),
+    (r.camApprovedAt ? fmtDate(r.camApprovedAt) : ''), r.camRemark || '',
+    r.approverRemark,
+    (r.decidedByName || '') + (r.decidedByUsername ? (' (' + r.decidedByUsername + ')') : ''),
+    r.decidedAt ? fmtDate(r.decidedAt) : '',
+    (r.updatedByName || '') + (r.updatedByUsername ? (' (' + r.updatedByUsername + ')') : ''),
+    r.updatedAt ? fmtDate(r.updatedAt) : ''
   ]);
   const csvLines = [headers.map(csvEscape).join(',')].concat(rows.map(row => row.map(csvEscape).join(',')));
   const csvContent = csvLines.join('\r\n');
@@ -1288,6 +1420,7 @@ function renderApprovalQueue(tier, searchId, pendingBodyId, pendingCountId, pend
       '<td class="num">' + fmtMoney(r.limitnow) + '</td>' +
       '<td class="num">' + fmtMoney(r.outstanding) + '</td>' +
       '<td class="num">' + fmtMoney(r.reqamt) + '</td>' +
+      '<td>' + (tier === 'sir' ? decidedByLabel(r.camApprovedByName, r.camApprovedByUsername) : '—') + '</td>' +
       '<td>' + esc(r.whRemark || '—') + '</td>' +
       '<td>' +
         '<div class="row-actions"><input class="remark-input" placeholder="Remark (optional)" id="remark_' + r.id + '" /></div>' +
@@ -1312,7 +1445,9 @@ function renderApprovalQueue(tier, searchId, pendingBodyId, pendingCountId, pend
           status: action,
           approverRemark: remark,
           decidedAt: new Date().toISOString(),
-          decidedByName: currentUser ? currentUser.name : ''
+          decidedByName: currentUser ? currentUser.name : '',
+          decidedByUsername: currentUser ? currentUser.username : '',
+          decidedByRole: currentUser ? currentUser.role : ''
         });
         showToast(req.custname + ' — ' + action + '.');
       }catch(e){
@@ -1322,7 +1457,7 @@ function renderApprovalQueue(tier, searchId, pendingBodyId, pendingCountId, pend
     });
   });
 
-  const hist = requests.filter(r => (r.status === 'Approved' || r.status === 'Rejected' || r.status === 'Updated') && r.tier === tier)
+  const hist = requests.filter(r => (r.status === 'Approved' || r.status === 'Rejected' || r.status === 'Updated') && r.tier === tier && (r.decidedByRole === tier || !r.decidedByRole))
     .sort((a,b)=> new Date(b.decidedAt || 0) - new Date(a.decidedAt || 0));
   document.getElementById(histCountId).textContent = '(' + hist.length + ')';
   const histBody = document.getElementById(histBodyId);
@@ -1339,7 +1474,7 @@ function renderApprovalQueue(tier, searchId, pendingBodyId, pendingCountId, pend
       '<td class="num">' + fmtMoney(r.reqamt) + '</td>' +
       '<td>' + statusPill(r.status) + '</td>' +
       '<td>' + esc(r.approverRemark || '—') + '</td>' +
-      '<td>' + esc(r.decidedByName || '—') + '</td>' +
+      '<td>' + decidedByLabel(r.decidedByName, r.decidedByUsername) + '</td>' +
       '<td>' + (r.decidedAt ? fmtDate(r.decidedAt) : '—') + '</td>';
     histBody.appendChild(tr);
   });
@@ -1387,13 +1522,23 @@ function renderProcTable(){
       const remark = remarkInput ? remarkInput.value.trim() : '';
       const req = requests.find(r => r.id === id);
       if(!req) return;
-      const nextStatus = action === 'reject' ? 'Processing-Rejected' : (req.tier === 'self' ? 'Self-Update' : 'Pending');
+      let nextStatus;
+      if(action === 'reject'){
+        nextStatus = 'Processing-Rejected';
+      } else if(req.tier === 'self'){
+        nextStatus = 'Self-Update';
+      } else if(req.tier === 'sir'){
+        nextStatus = 'Pending-Cam'; // above ₹3,00,000: goes to NKAM first, only moves on to Sales Director once NKAM approves
+      } else {
+        nextStatus = 'Pending';
+      }
       try{
         await updateRequest(id, {
           status: nextStatus,
           procRemark: remark,
           procDecidedAt: new Date().toISOString(),
-          procDecidedByName: currentUser ? currentUser.name : ''
+          procDecidedByName: currentUser ? currentUser.name : '',
+          procDecidedByUsername: currentUser ? currentUser.username : ''
         });
         showToast(req.custname + ' — ' + (action === 'reject' ? 'Rejected by Processing Team.' : 'Approved by Processing Team, moved to next level.'));
       }catch(e){
@@ -1421,14 +1566,131 @@ function renderProcTable(){
       '<td>' + levelTag(r.tier) + '</td>' +
       '<td>' + statusPill(r.status) + '</td>' +
       '<td>' + esc(r.procRemark || '—') + '</td>' +
-      '<td>' + esc(r.procDecidedByName || '—') + '</td>' +
+      '<td>' + decidedByLabel(r.procDecidedByName, r.procDecidedByUsername) + '</td>' +
       '<td>' + (r.procDecidedAt ? fmtDate(r.procDecidedAt) : '—') + '</td>';
     histBody.appendChild(tr);
   });
 }
 
 function renderCamTable(){
-  renderApprovalQueue('cam', 'camSearch', 'camTableBody', 'camPendingCount', 'camEmpty', 'camHistBody', 'camHistCount', 'camHistEmpty');
+  const search = document.getElementById('camSearch').value.trim().toLowerCase();
+  // NKAM handles two kinds of pending items:
+  //  - tier 'cam' (₹2,00,001–₹3,00,000): NKAM's decision is final.
+  //  - tier 'sir' with status 'Pending-Cam' (above ₹3,00,000): NKAM must sign off first;
+  //    approving here sends it on to the Sales Director, it does NOT finalize the request.
+  let pending = requests.filter(r => (r.status === 'Pending' && r.tier === 'cam') || (r.status === 'Pending-Cam' && r.tier === 'sir'));
+  if(search) pending = pending.filter(r =>
+    r.custname.toLowerCase().includes(search) || r.custcd.toLowerCase().includes(search));
+
+  document.getElementById('camPendingCount').textContent = '(' + pending.length + ')';
+  const body = document.getElementById('camTableBody');
+  body.innerHTML = '';
+  document.getElementById('camEmpty').style.display = pending.length ? 'none' : 'block';
+
+  pending.forEach(r=>{
+    const isSirStage = r.tier === 'sir';
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + fmtDate(r.createdAt) + '</td>' +
+      '<td>' + esc(r.postedByName || '—') + '</td>' +
+      '<td>' + esc(r.cfa) + '</td>' +
+      '<td>' + esc(r.custcd) + '</td>' +
+      '<td>' + esc(r.custname) + '</td>' +
+      '<td class="num">' + fmtMoney(r.limitnow) + '</td>' +
+      '<td class="num">' + fmtMoney(r.outstanding) + '</td>' +
+      '<td class="num">' + fmtMoney(r.reqamt) + '</td>' +
+      '<td>' + (isSirStage ? '<span class="level-tag level-sir">→ Sales Director</span>' : '<span class="level-tag level-cam">Final</span>') + '</td>' +
+      '<td>' + esc(r.whRemark || '—') + '</td>' +
+      '<td>' +
+        '<div class="row-actions"><input class="remark-input" placeholder="Remark (optional)" id="camremark_' + r.id + '" /></div>' +
+        '<div class="row-actions" style="margin-top:6px;">' +
+          '<button class="btn btn-approve" data-id="' + r.id + '" data-action="approve">Approve</button>' +
+          '<button class="btn btn-reject" data-id="' + r.id + '" data-action="reject">Reject</button>' +
+        '</div>' +
+      '</td>';
+    body.appendChild(tr);
+  });
+
+  body.querySelectorAll('button[data-action]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.getAttribute('data-id');
+      const action = btn.getAttribute('data-action');
+      const remarkInput = document.getElementById('camremark_' + id);
+      const remark = remarkInput ? remarkInput.value.trim() : '';
+      const req = requests.find(r => r.id === id);
+      if(!req) return;
+      try{
+        if(req.tier === 'sir' && req.status === 'Pending-Cam'){
+          if(action === 'reject'){
+            await updateRequest(id, {
+              status: 'Rejected',
+              approverRemark: remark,
+              decidedAt: new Date().toISOString(),
+              decidedByName: currentUser ? currentUser.name : '',
+              decidedByUsername: currentUser ? currentUser.username : '',
+              decidedByRole: 'cam'
+            });
+            showToast(req.custname + ' — Rejected by NKAM.');
+          } else {
+            await updateRequest(id, {
+              status: 'Pending',
+              camApprovedAt: new Date().toISOString(),
+              camApprovedByName: currentUser ? currentUser.name : '',
+              camApprovedByUsername: currentUser ? currentUser.username : '',
+              camRemark: remark
+            });
+            showToast(req.custname + ' — Approved by NKAM, sent to Sales Director.');
+          }
+        } else {
+          const status = action === 'reject' ? 'Rejected' : 'Approved';
+          await updateRequest(id, {
+            status: status,
+            approverRemark: remark,
+            decidedAt: new Date().toISOString(),
+            decidedByName: currentUser ? currentUser.name : '',
+            decidedByUsername: currentUser ? currentUser.username : '',
+            decidedByRole: 'cam'
+          });
+          showToast(req.custname + ' — ' + status + '.');
+        }
+      }catch(e){
+        console.error(e);
+        showToast('Could not save decision — check your connection.');
+      }
+    });
+  });
+
+  // History: cam-tier final decisions, plus sir-tier items NKAM has signed off on (whatever happens next).
+  const hist = requests.filter(r =>
+      (r.tier === 'cam' && (r.status === 'Approved' || r.status === 'Rejected' || r.status === 'Updated') && (r.decidedByRole === 'cam' || !r.decidedByRole)) ||
+      (r.tier === 'sir' && (r.camApprovedAt || (r.decidedByRole === 'cam')))
+    )
+    .sort((a,b)=> new Date((b.camApprovedAt || b.decidedAt) || 0) - new Date((a.camApprovedAt || a.decidedAt) || 0));
+  document.getElementById('camHistCount').textContent = '(' + hist.length + ')';
+  const histBody = document.getElementById('camHistBody');
+  histBody.innerHTML = '';
+  document.getElementById('camHistEmpty').style.display = hist.length ? 'none' : 'block';
+  hist.forEach(r=>{
+    const tr = document.createElement('tr');
+    const isSirSignOff = r.tier === 'sir' && r.camApprovedAt;
+    const statusCell = isSirSignOff ? '<span class="status-pill st-self">Signed off → Sales Director</span>' : statusPill(r.status);
+    const remarkCell = isSirSignOff ? (r.camRemark || '—') : (r.approverRemark || '—');
+    const byName = isSirSignOff ? r.camApprovedByName : r.decidedByName;
+    const byUsername = isSirSignOff ? r.camApprovedByUsername : r.decidedByUsername;
+    const whenAt = isSirSignOff ? r.camApprovedAt : r.decidedAt;
+    tr.innerHTML =
+      '<td>' + fmtDate(r.createdAt) + '</td>' +
+      '<td>' + esc(r.postedByName || '—') + '</td>' +
+      '<td>' + esc(r.cfa) + '</td>' +
+      '<td>' + esc(r.custcd) + '</td>' +
+      '<td>' + esc(r.custname) + '</td>' +
+      '<td class="num">' + fmtMoney(r.reqamt) + '</td>' +
+      '<td>' + statusCell + '</td>' +
+      '<td>' + esc(remarkCell) + '</td>' +
+      '<td>' + decidedByLabel(byName, byUsername) + '</td>' +
+      '<td>' + (whenAt ? fmtDate(whenAt) : '—') + '</td>';
+    histBody.appendChild(tr);
+  });
 }
 function renderSirTable(){
   renderApprovalQueue('sir', 'sirSearch', 'sirTableBody', 'sirPendingCount', 'sirEmpty', 'sirHistBody', 'sirHistCount', 'sirHistEmpty');
@@ -1445,6 +1707,20 @@ function renderAll(){
 document.getElementById('entryFilterStatus').addEventListener('change', renderEntryTable);
 document.getElementById('entryFilterCfa').addEventListener('change', renderEntryTable);
 document.getElementById('entryFilterUser').addEventListener('change', renderEntryTable);
+document.getElementById('colf_date').addEventListener('change', (e)=>{
+  e.target.dataset.userCleared = e.target.value ? '' : '1';
+  renderEntryTable();
+});
+document.getElementById('colf_date_clear').addEventListener('click', ()=>{
+  const el = document.getElementById('colf_date');
+  el.value = '';
+  el.dataset.userCleared = '1';
+  renderEntryTable();
+});
+['colf_postedby','colf_cfa','colf_custcd','colf_custname','colf_decidedby'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', renderEntryTable);
+});
+document.getElementById('colf_level').addEventListener('change', renderEntryTable);
 document.getElementById('procSearch').addEventListener('input', renderProcTable);
 document.getElementById('camSearch').addEventListener('input', renderCamTable);
 document.getElementById('sirSearch').addEventListener('input', renderSirTable);
