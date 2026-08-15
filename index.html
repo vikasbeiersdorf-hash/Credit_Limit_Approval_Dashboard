@@ -301,15 +301,15 @@
       <span class="sub">Raise a credit limit request</span>
     </div>
     <div class="tab" data-tab="proc" id="tabProc">
-      Processing Team <span class="lock-icon">🔒</span>
+      Processing Team
       <span class="sub">All requests — first approval</span>
     </div>
     <div class="tab" data-tab="cam" id="tabCam">
-      NKAM Approval <span class="lock-icon">🔒</span>
+      NKAM Approval
       <span class="sub">₹2L – ₹3L requests</span>
     </div>
     <div class="tab" data-tab="sir" id="tabSir">
-      Sales Director Approval <span class="lock-icon">🔒</span>
+      Sales Director Approval
       <span class="sub">Above ₹3L requests</span>
     </div>
   </div>
@@ -536,24 +536,6 @@
 
 <div class="toast" id="toast"></div>
 
-<div class="modal-overlay" id="pinOverlay">
-  <div class="modal-box">
-    <div class="modal-head">
-      <div class="eyebrow">Restricted</div>
-      <h3 id="pinModalTitle">PIN required</h3>
-    </div>
-    <div class="modal-body">
-      <p id="pinModalText">Enter the PIN to continue.</p>
-      <input type="password" id="pinInput" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="off" />
-      <div class="modal-error" id="pinError"></div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" id="pinCancel">Cancel</button>
-      <button class="btn btn-primary" id="pinSubmit">Unlock</button>
-    </div>
-  </div>
-</div>
-
 <div class="modal-overlay" id="bulkOverlay">
   <div class="modal-box" style="max-width:760px;">
     <div class="modal-head">
@@ -602,14 +584,6 @@ const COLLECTION_NAME = 'credit_requests';
 // ---- Approval thresholds (change these three numbers if the policy changes) ----
 const SELF_LIMIT = 200000;   // <= this: self-update, no approval needed
 const CAM_LIMIT  = 300000;   // <= this (and > SELF_LIMIT): NKAM approval; above this: Sales Director approval
-
-// ---- PIN locks. Change these to whatever Processing Team / NKAM / Sales Director want their PIN to be. ----
-const PROC_PIN = '1122';
-const CAM_PIN = '2580';
-const SIR_PIN = '1947';
-let procUnlocked = false;
-let camUnlocked = false;
-let sirUnlocked = false;
 
 // ---- User accounts. Add / remove / edit users here — one line per person. ----
 // role: 'admin' | 'processing' | 'cam' (NKAM) | 'sir' (Sales Director) | 'CFA'
@@ -813,6 +787,7 @@ function showDashboardFor(user){
   document.getElementById('currentUserBadge').style.display = 'inline-flex';
   document.getElementById('currentUserName').textContent = user.name;
   document.getElementById('btnLogout').style.display = 'inline-block';
+  applyRoleAccess();
   renderAll();
 }
 function tryLogin(){
@@ -1485,66 +1460,40 @@ function switchTab(tab){
   document.getElementById('viewSir').style.display = tab==='sir' ? 'block' : 'none';
 }
 
-// ---- PIN lock logic ----
-const pinOverlay = document.getElementById('pinOverlay');
-const pinInput = document.getElementById('pinInput');
-const pinError = document.getElementById('pinError');
-const pinModalTitle = document.getElementById('pinModalTitle');
-const pinModalText = document.getElementById('pinModalText');
-let pendingUnlockTarget = null; // 'proc', 'cam' or 'sir'
-
-function openPinModal(target){
-  pendingUnlockTarget = target;
-  pinInput.value = '';
-  pinError.textContent = '';
-  if(target === 'proc'){
-    pinModalTitle.textContent = "Processing Team's PIN required";
-    pinModalText.textContent = 'Only the Processing Team can approve or reject these requests. Enter the PIN to continue.';
-  } else if(target === 'cam'){
-    pinModalTitle.textContent = "NKAM's PIN required";
-    pinModalText.textContent = 'Only NKAM can approve or reject these requests. Enter the PIN to continue.';
-  } else {
-    pinModalTitle.textContent = "Sales Director's PIN required";
-    pinModalText.textContent = 'Only Sales Director can approve or reject these requests. Enter the PIN to continue.';
-  }
-  pinOverlay.classList.add('show');
-  setTimeout(()=>pinInput.focus(), 50);
+// ---- Role-based section access ----
+// Each role can only open the tab(s) that belong to them. Admin can open every tab.
+// CFA        → Entry only
+// processing → Processing Team only
+// cam        → NKAM Approval only
+// sir        → Sales Director Approval only
+// admin      → everything
+function tabsAllowedForRole(role){
+  if(role === 'admin') return ['entry','proc','cam','sir'];
+  if(role === 'processing') return ['proc'];
+  if(role === 'cam') return ['cam'];
+  if(role === 'sir') return ['sir'];
+  return ['entry']; // CFA and anything unrecognised
 }
-function closePinModal(){
-  pinOverlay.classList.remove('show');
-  pendingUnlockTarget = null;
+function applyRoleAccess(){
+  const allowed = currentUser ? tabsAllowedForRole(currentUser.role) : ['entry'];
+  const tabEls = { entry: 'tabEntry', proc: 'tabProc', cam: 'tabCam', sir: 'tabSir' };
+  Object.keys(tabEls).forEach(key=>{
+    document.getElementById(tabEls[key]).style.display = allowed.includes(key) ? '' : 'none';
+  });
+  switchTab(allowed[0]);
 }
-function tryUnlock(){
-  const correctPin = pendingUnlockTarget === 'proc' ? PROC_PIN : (pendingUnlockTarget === 'cam' ? CAM_PIN : SIR_PIN);
-  if(pinInput.value.trim() === correctPin){
-    if(pendingUnlockTarget === 'proc') procUnlocked = true;
-    if(pendingUnlockTarget === 'cam') camUnlocked = true;
-    if(pendingUnlockTarget === 'sir') sirUnlocked = true;
-    const target = pendingUnlockTarget;
-    closePinModal();
-    switchTab(target);
-  } else {
-    pinError.textContent = 'Incorrect PIN. Please try again.';
-    pinInput.value = '';
-    pinInput.focus();
-  }
-}
-document.getElementById('pinSubmit').addEventListener('click', tryUnlock);
-document.getElementById('pinCancel').addEventListener('click', closePinModal);
-pinInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') tryUnlock(); });
-pinOverlay.addEventListener('click', (e)=>{ if(e.target === pinOverlay) closePinModal(); });
 
 document.getElementById('tabEntry').addEventListener('click', ()=>{
-  switchTab('entry');
+  if(currentUser && tabsAllowedForRole(currentUser.role).includes('entry')) switchTab('entry');
 });
 document.getElementById('tabProc').addEventListener('click', ()=>{
-  if(procUnlocked){ switchTab('proc'); } else { openPinModal('proc'); }
+  if(currentUser && tabsAllowedForRole(currentUser.role).includes('proc')) switchTab('proc');
 });
 document.getElementById('tabCam').addEventListener('click', ()=>{
-  if(camUnlocked){ switchTab('cam'); } else { openPinModal('cam'); }
+  if(currentUser && tabsAllowedForRole(currentUser.role).includes('cam')) switchTab('cam');
 });
 document.getElementById('tabSir').addEventListener('click', ()=>{
-  if(sirUnlocked){ switchTab('sir'); } else { openPinModal('sir'); }
+  if(currentUser && tabsAllowedForRole(currentUser.role).includes('sir')) switchTab('sir');
 });
 
 initFirebase();
