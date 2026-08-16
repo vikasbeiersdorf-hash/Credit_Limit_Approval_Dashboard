@@ -142,7 +142,14 @@
   .btn-mark{ background:var(--purple); color:#fff; }
   .btn-mark:hover{ background:#463b6e; }
   .admin-col{ display:none; }
-  body.is-admin .admin-col{ display:table-cell; }
+  body.is-admin.delete-mode .admin-col{ display:table-cell; }
+  .delete-mode-banner{
+    display:none; position:fixed; top:0; left:0; right:0; z-index:999;
+    background:#fdecea; color:var(--red); border-bottom:1px solid #f3c6c1;
+    font-family:var(--sans); font-size:12.5px; font-weight:600; text-align:center; padding:7px 10px;
+    letter-spacing:.02em;
+  }
+  body.delete-mode .delete-mode-banner{ display:block; }
   .btn-delete{ background:#fdecea; color:var(--red); border:1px solid #f3c6c1; }
   .btn-delete:hover{ background:#fadcd8; }
   .btn-small{ padding:6px 12px; font-size:12px; }
@@ -259,6 +266,7 @@
 </style>
 </head>
 <body>
+  <div class="delete-mode-banner">Delete mode ON — Delete buttons are visible. Press Esc to hide them again.</div>
 
 <div class="modal-overlay show" id="loginOverlay" style="z-index:200;">
   <div class="modal-box">
@@ -333,7 +341,7 @@
 
   <!-- ENTRY VIEW -->
   <div id="viewEntry">
-    <div class="panel">
+    <div class="panel" id="raiseRequestPanel">
       <div class="form-title">New Credit Limit Request</div>
       <div class="form-grid">
         <div class="field">
@@ -645,9 +653,12 @@ const CAM_LIMIT  = 300000;   // <= this (and > SELF_LIMIT): NKAM approval; above
 //   (leave location: '' for admin / processing / cam / sir users)
 const USERS = [
   { username: 'admin',   password: 'admin123',   name: 'Admin',              role: 'admin',      location: '' },
-  { username: 'proc',    password: 'proc123',    name: 'Processing Team',    role: 'processing', location: '' },
-  { username: 'nkam',    password: 'nkam123',    name: 'NKAM',               role: 'cam',         location: '' },
+  { username: 'rupesh',  password: 'rupesh123',  name: 'Rupesh Ghag',        role: 'processing', location: '' },
+  { username: 'piyush',  password: 'piyush123',  name: 'Piyush Kumar',       role: 'processing', location: '' },
+  { username: 'amandeep',password: 'amandeep123',name: 'Amandeep Dhawan',    role: 'cam',         location: '' },
+  { username: 'durva',   password: 'durva123',   name: 'Durva Wadkar',       role: 'cam',         location: '' },
   { username: 'sd',      password: 'sd123',      name: 'Sales Director',     role: 'sir',         location: '' },
+  { username: 'viewer',  password: 'viewer123',  name: 'Viewer (Read Only)', role: 'viewer',      location: '' },
   { username: 'DHN', password: 'DHN123', name: 'Dehradun CFA',  role: 'CFA', location: 'Dehradun' },
   { username: 'GAZ', password: 'GAZ123', name: 'Ghaziabad CFA', role: 'CFA', location: 'Ghaziabad' },
   { username: 'JAI', password: 'JAI123', name: 'Jaipur CFA',    role: 'CFA', location: 'Jaipur' },
@@ -893,6 +904,7 @@ function logout(dueToIdle){
   document.getElementById('currentUserBadge').style.display = 'none';
   document.getElementById('btnLogout').style.display = 'none';
   document.body.classList.remove('is-admin');
+  document.body.classList.remove('delete-mode');
   document.getElementById('loginUsername').value = '';
   document.getElementById('loginPassword').value = '';
   document.getElementById('loginError').textContent = dueToIdle
@@ -1437,12 +1449,15 @@ function renderApprovalQueue(tier, searchId, pendingBodyId, pendingCountId, pend
       '<td class="num">' + fmtMoney(r.reqamt) + '</td>' +
       '<td>' + (tier === 'sir' ? decidedByLabel(r.camApprovedByName, r.camApprovedByUsername) : '—') + '</td>' +
       '<td>' + esc(r.whRemark || '—') + '</td>' +
-      '<td>' +
+      '<td>' + (isViewer()
+        ? '<span style="color:var(--ink-soft); font-size:12px;">View only</span>'
+        : (
         '<div class="row-actions"><input class="remark-input" placeholder="Remark (optional)" id="remark_' + r.id + '" /></div>' +
         '<div class="row-actions" style="margin-top:6px;">' +
           '<button class="btn btn-approve" data-id="' + r.id + '" data-action="Approved">Approve</button>' +
           '<button class="btn btn-reject" data-id="' + r.id + '" data-action="Rejected">Reject</button>' +
-        '</div>' +
+        '</div>'
+        )) +
       '</td>';
     body.appendChild(tr);
   });
@@ -1522,12 +1537,15 @@ function renderProcTable(){
       '<td class="num">' + fmtMoney(r.reqamt) + '</td>' +
       '<td>' + levelTag(r.tier) + '</td>' +
       '<td>' + esc(r.whRemark || '—') + '</td>' +
-      '<td>' +
+      '<td>' + (isViewer()
+        ? '<span style="color:var(--ink-soft); font-size:12px;">View only</span>'
+        : (
         '<div class="row-actions"><input class="remark-input" placeholder="Remark (optional)" id="procremark_' + r.id + '" /></div>' +
         '<div class="row-actions" style="margin-top:6px;">' +
           '<button class="btn btn-approve" data-id="' + r.id + '" data-action="approve">Approve</button>' +
           '<button class="btn btn-reject" data-id="' + r.id + '" data-action="reject">Reject</button>' +
-        '</div>' +
+        '</div>'
+        )) +
       '</td>';
     body.appendChild(tr);
   });
@@ -1622,12 +1640,15 @@ function renderCamTable(){
       '<td class="num">' + fmtMoney(r.reqamt) + '</td>' +
       '<td>' + (isSirStage ? '<span class="level-tag level-sir">→ Sales Director</span>' : '<span class="level-tag level-cam">Final</span>') + '</td>' +
       '<td>' + esc(r.whRemark || '—') + '</td>' +
-      '<td>' +
+      '<td>' + (isViewer()
+        ? '<span style="color:var(--ink-soft); font-size:12px;">View only</span>'
+        : (
         '<div class="row-actions"><input class="remark-input" placeholder="Remark (optional)" id="camremark_' + r.id + '" /></div>' +
         '<div class="row-actions" style="margin-top:6px;">' +
           '<button class="btn btn-approve" data-id="' + r.id + '" data-action="approve">Approve</button>' +
           '<button class="btn btn-reject" data-id="' + r.id + '" data-action="reject">Reject</button>' +
-        '</div>' +
+        '</div>'
+        )) +
       '</td>';
     body.appendChild(tr);
   });
@@ -1763,6 +1784,18 @@ wireDateFilter('procDateFilter', 'procDateFilter_clear', renderProcTable);
 wireDateFilter('camDateFilter', 'camDateFilter_clear', renderCamTable);
 wireDateFilter('sirDateFilter', 'sirDateFilter_clear', renderSirTable);
 
+// Delete buttons are hidden by default even for Admin, to avoid accidental deletes.
+// Ctrl+Shift+D reveals them (admin only); Esc hides them again.
+document.addEventListener('keydown', (e)=>{
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  if(isAdmin && e.ctrlKey && e.shiftKey && (e.key === 'D' || e.key === 'd')){
+    e.preventDefault();
+    document.body.classList.add('delete-mode');
+  } else if(e.key === 'Escape' && document.body.classList.contains('delete-mode')){
+    document.body.classList.remove('delete-mode');
+  }
+});
+
 function switchTab(tab){
   document.getElementById('tabEntry').classList.toggle('active', tab==='entry');
   document.getElementById('tabProc').classList.toggle('active', tab==='proc');
@@ -1781,19 +1814,23 @@ function switchTab(tab){
 // cam        → NKAM Approval only
 // sir        → Sales Director Approval only
 // admin      → everything
+// viewer     → everything, read-only (no approve/reject/delete/mark-updated actions)
 function tabsAllowedForRole(role){
   if(role === 'admin') return ['entry','proc','cam','sir'];
+  if(role === 'viewer') return ['entry','proc','cam','sir'];
   if(role === 'processing') return ['proc'];
   if(role === 'cam') return ['cam'];
   if(role === 'sir') return ['sir'];
   return ['entry']; // CFA and anything unrecognised
 }
+function isViewer(){ return !!(currentUser && currentUser.role === 'viewer'); }
 function applyRoleAccess(){
   const allowed = currentUser ? tabsAllowedForRole(currentUser.role) : ['entry'];
   const tabEls = { entry: 'tabEntry', proc: 'tabProc', cam: 'tabCam', sir: 'tabSir' };
   Object.keys(tabEls).forEach(key=>{
     document.getElementById(tabEls[key]).style.display = allowed.includes(key) ? '' : 'none';
   });
+  document.getElementById('raiseRequestPanel').style.display = isViewer() ? 'none' : '';
   switchTab(allowed[0]);
 }
 
