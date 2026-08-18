@@ -1716,7 +1716,11 @@ function renderCamTable(){
   //  - tier 'cam' (₹2,00,001–₹3,00,000): NKAM's decision is final.
   //  - tier 'sir' with status 'Pending-Cam' (above ₹3,00,000): NKAM must sign off first;
   //    approving here sends it on to the Sales Director, it does NOT finalize the request.
-  let pending = requests.filter(r => (r.status === 'Pending' && r.tier === 'cam') || (r.status === 'Pending-Cam' && r.tier === 'sir'));
+  // Safety check: a ₹2L–3L (cam tier) request must have actually been approved by
+  // Processing Team first (procDecidedAt gets stamped only when Processing approves).
+  // This extra check makes sure NKAM never sees a request that skipped Processing,
+  // even if the status field alone were ever wrong.
+  let pending = requests.filter(r => (r.status === 'Pending' && r.tier === 'cam' && !!r.procDecidedAt) || (r.status === 'Pending-Cam' && r.tier === 'sir' && !!r.procDecidedAt));
   if(search) pending = pending.filter(r =>
     r.custname.toLowerCase().includes(search) || r.custcd.toLowerCase().includes(search));
 
