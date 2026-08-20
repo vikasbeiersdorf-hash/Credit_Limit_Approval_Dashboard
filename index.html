@@ -277,41 +277,53 @@
   .brand-page{ width:100%; min-height:100vh; display:flex; flex-direction:column; background:var(--paper); }
   .brand-header{
     background:var(--brand-navy); position:relative; overflow:hidden;
-    padding:20px 32px 32px; display:flex; align-items:center; justify-content:space-between; gap:16px;
-    flex-shrink:0; min-height:96px;
+    padding:14px 28px 22px; display:flex; align-items:center; justify-content:space-between; gap:16px;
+    flex-shrink:0; min-height:66px;
   }
-  .brand-header img.brand-logo{ height:52px; width:auto; display:block; flex:none; }
+  .brand-header img.brand-logo{ height:38px; width:auto; display:block; flex:none; }
   .brand-tagline-small{
     font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; color:#c9cee8; text-transform:uppercase;
     z-index:2; position:relative; white-space:nowrap;
   }
   .brand-header-curve{
-    position:absolute; left:-6%; right:-6%; bottom:-22px; height:44px;
+    position:absolute; left:-6%; right:-6%; bottom:-16px; height:32px;
     background:var(--brand-red); border-radius:50%;
   }
-  .brand-hero{ text-align:center; padding:54px 24px 36px; max-width:640px; margin:0 auto; }
+  .brand-hero{ text-align:center; padding:24px 24px 16px; max-width:640px; margin:0 auto; }
   .brand-hero-icon{
-    width:58px; height:58px; margin:0 auto 20px; border-radius:14px; background:var(--brand-red);
-    display:flex; align-items:center; justify-content:center; box-shadow:0 10px 24px rgba(226,0,26,.28);
+    width:40px; height:40px; margin:0 auto 12px; border-radius:11px; background:var(--brand-red);
+    display:flex; align-items:center; justify-content:center; box-shadow:0 8px 18px rgba(226,0,26,.28);
   }
-  .brand-hero-icon svg{ width:30px; height:30px; }
-  .brand-hero h1{ font-family:var(--serif); font-size:27px; color:var(--brand-navy-deep); margin:0 0 12px; line-height:1.3; }
-  .brand-hero p{ font-size:13.5px; color:var(--ink-soft); line-height:1.65; margin:0; }
-  .brand-signin-wrap{ flex:1; display:flex; align-items:flex-start; justify-content:center; padding:10px 20px 50px; }
+  .brand-hero-icon svg{ width:22px; height:22px; }
+  .brand-hero h1{ font-family:var(--serif); font-size:20px; color:var(--brand-navy-deep); margin:0 0 8px; line-height:1.25; }
+  .brand-hero p{ font-size:12.5px; color:var(--ink-soft); line-height:1.55; margin:0; }
+  .brand-signin-wrap{ flex:1; display:flex; align-items:flex-start; justify-content:center; padding:0 20px 24px; }
   .brand-signin-card{
-    background:var(--panel); width:100%; max-width:360px; border:1px solid var(--line);
+    background:var(--panel); width:100%; max-width:340px; border:1px solid var(--line);
     border-top:4px solid var(--brand-red); box-shadow:0 24px 54px rgba(13,33,72,.14);
   }
   .brand-footer{
-    text-align:center; font-size:11px; color:var(--ink-soft); padding:16px; font-family:var(--mono);
+    text-align:center; font-size:10.5px; color:var(--ink-soft); padding:10px; font-family:var(--mono);
     border-top:1px solid var(--line); background:#fff;
   }
   @media (max-width:520px){
-    .brand-header{ padding:16px 16px 26px; min-height:76px; }
-    .brand-header img.brand-logo{ height:38px; }
+    .brand-header{ padding:12px 16px 18px; min-height:56px; }
+    .brand-header img.brand-logo{ height:30px; }
     .brand-tagline-small{ font-size:9px; }
-    .brand-hero{ padding:40px 18px 28px; }
-    .brand-hero h1{ font-size:22px; }
+    .brand-hero{ padding:18px 18px 14px; }
+    .brand-hero h1{ font-size:18px; }
+  }
+  @media (max-height:720px){
+    .brand-header{ padding:10px 24px 16px; min-height:52px; }
+    .brand-header img.brand-logo{ height:30px; }
+    .brand-hero{ padding:14px 24px 10px; }
+    .brand-hero-icon{ display:none; }
+    .brand-hero h1{ font-size:17px; margin:0 0 5px; }
+    .brand-hero p{ font-size:11.5px; }
+    .modal-head{ padding:12px 20px 10px; }
+    .modal-body{ padding:12px 20px; }
+    .modal-body > div{ margin-bottom:9px !important; }
+    .brand-footer{ padding:6px; }
   }
 
   .setup-banner{
@@ -840,19 +852,18 @@ function lockCfaFieldForUser(){
 function searchCustomerMaster(query){
   const q = query.trim().toUpperCase();
   if(!q) return [];
+  const isCfaUser = !!(currentUser && currentUser.role === 'CFA');
   const cfaCode = (document.getElementById('f_cfa').value || '').trim().toUpperCase();
   const matches = [];
   for(const c of CUSTOMER_MASTER){
+    // A CFA user must only ever see their own location's customers — never another CFA's.
+    if(isCfaUser && c.loc.toUpperCase() !== cfaCode) continue;
     if(c.custcd.toUpperCase().indexOf(q) !== -1 || c.custname.toUpperCase().indexOf(q) !== -1){
       matches.push(c);
-      if(matches.length >= 400) break;
+      if(matches.length >= 40) break;
     }
   }
-  // If the CFA's own location has matches, show those first; otherwise fall back to all matches.
-  const own = matches.filter(c => cfaCode && c.loc.toUpperCase() === cfaCode);
-  const rest = matches.filter(c => !(cfaCode && c.loc.toUpperCase() === cfaCode));
-  const ordered = (own.length ? own.concat(rest) : matches);
-  return ordered.slice(0, 40);
+  return matches;
 }
 function renderCustSuggestions(list){
   const box = document.getElementById('custcdSuggest');
@@ -1143,6 +1154,7 @@ function logout(dueToIdle){
   document.body.classList.remove('delete-mode');
   document.getElementById('loginUsername').value = '';
   document.getElementById('loginPassword').value = '';
+  clearForm();
   document.getElementById('loginError').textContent = dueToIdle
     ? ('Locked after ' + IDLE_LIMIT_MINUTES + ' minutes of inactivity. Please sign in again.')
     : '';
