@@ -24,6 +24,7 @@
     --blue-soft:#dbe8f2;
     --purple:#5b4b8a;
     --purple-soft:#e6e1f2;
+    --navy-soft:#e8e6f5;
     --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
     --serif: 'Source Serif 4', Georgia, serif;
     --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -172,13 +173,61 @@
   .btn-delete:hover{ background:#fadcd8; }
   .btn-small{ padding:6px 12px; font-size:12px; }
 
+  /* NOTIFICATION BELL */
+  .notif-wrap{ position:fixed; top:16px; right:20px; z-index:120; }
+  .btn-bell{
+    position:relative; background:var(--panel); border:1px solid var(--line); cursor:pointer;
+    width:38px; height:38px; border-radius:50%; font-size:17px; display:flex; align-items:center; justify-content:center;
+  }
+  .btn-bell:hover{ background:var(--paper); }
+  .btn-bell.has-unread{ animation:bellshake 2.2s ease-in-out infinite; }
+  @keyframes bellshake{ 0%,88%,100%{ transform:rotate(0);} 90%{ transform:rotate(-12deg);} 92%{ transform:rotate(10deg);} 94%{ transform:rotate(-8deg);} 96%{ transform:rotate(5deg);} 98%{ transform:rotate(0);} }
+  .notif-badge{
+    position:absolute; top:-4px; right:-4px; background:var(--red); color:#fff;
+    font-family:var(--mono); font-size:10.5px; font-weight:700; min-width:17px; height:17px; padding:0 4px;
+    border-radius:999px; display:flex; align-items:center; justify-content:center; line-height:1;
+    border:2px solid var(--paper);
+  }
+  .notif-panel{
+    display:none; position:absolute; top:46px; right:0; width:340px; max-height:420px; overflow-y:auto;
+    background:var(--panel); border:1px solid var(--line); box-shadow:0 14px 34px rgba(24,20,84,.18);
+    border-radius:4px; z-index:150;
+  }
+  .notif-panel.show{ display:block; }
+  .notif-panel-head{
+    font-family:var(--serif); font-size:15px; color:var(--navy-deep); padding:12px 16px;
+    border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--panel);
+  }
+  .notif-item{
+    padding:11px 16px; border-bottom:1px solid var(--line); cursor:pointer; transition:background .12s ease;
+  }
+  .notif-item:hover{ background:var(--paper); }
+  .notif-item:last-child{ border-bottom:none; }
+  .notif-item-top{ display:flex; justify-content:space-between; gap:8px; margin-bottom:6px; }
+  .notif-item-title{ font-size:12.5px; font-weight:700; color:var(--navy-deep); }
+  .notif-item-amt{ font-family:var(--mono); font-size:11.5px; color:var(--ink-soft); white-space:nowrap; }
+  .notif-steps{ display:flex; flex-wrap:wrap; gap:5px; }
+  .notif-step{
+    font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:.03em;
+    padding:2px 7px; border-radius:999px; font-weight:700; display:inline-flex; align-items:center; gap:3px;
+  }
+  .notif-step.done{ background:var(--green-soft); color:var(--green); }
+  .notif-step.pending{ background:var(--red-soft); color:var(--red); }
+  .notif-date{ font-family:var(--mono); font-size:10.5px; color:var(--ink-soft); margin-bottom:6px; }
+  .notif-next{
+    font-family:var(--sans); font-size:11px; color:var(--amber); font-weight:600; margin-left:4px;
+    display:inline-block;
+  }
+  .notif-hint{ font-size:10.5px; color:var(--ink-soft); margin-top:6px; font-style:italic; }
+  .notif-empty{ padding:30px 16px; text-align:center; color:var(--ink-soft); font-size:12.5px; font-family:var(--mono); }
+
   /* TABLE */
   .table-wrap{ overflow-x:auto; margin-top:24px; }
   table{ width:100%; border-collapse:collapse; background:var(--panel); font-size:13px; }
   thead th{
     text-align:left; font-family:var(--mono); font-size:10.5px; text-transform:uppercase;
     letter-spacing:.06em; color:var(--ink-soft); padding:10px 12px; border-bottom:2px solid var(--navy);
-    white-space:nowrap; background:#eae6d8;
+    white-space:nowrap; background:var(--navy-soft);
   }
   tbody td{
     padding:11px 12px; border-bottom:1px solid var(--line); vertical-align:middle; white-space:nowrap;
@@ -342,6 +391,18 @@
 </head>
 <body>
   <div class="delete-mode-banner">Delete mode ON — Delete buttons are visible. Press Esc to hide them again.</div>
+
+  <div class="notif-wrap" id="notifWrap" style="display:none;">
+    <button class="btn-bell" id="btnNotifBell" title="Notifications">
+      🔔
+      <span class="notif-badge" id="notifBadge" style="display:none;">0</span>
+    </button>
+    <div class="notif-panel" id="notifPanel">
+      <div class="notif-panel-head">Notifications</div>
+      <div id="notifList"></div>
+      <div class="notif-empty" id="notifEmpty" style="display:none;">No new updates. Click a card once you've seen it.</div>
+    </div>
+  </div>
 
 <div class="modal-overlay show" id="loginOverlay" style="z-index:200;">
   <div class="brand-page">
@@ -1113,6 +1174,7 @@ idleCheckTimer = setInterval(checkIdle, 15000); // check every 15s, locks within
 // ---- Login / logout ----
 function showDashboardFor(user){
   currentUser = user;
+  notifBaselineSet = null;
   document.getElementById('loginOverlay').classList.remove('show');
   document.getElementById('dashboardRoot').style.display = 'block';
   document.getElementById('currentUserBadge').style.display = 'inline-flex';
@@ -1146,10 +1208,13 @@ function tryLogin(){
 }
 function logout(dueToIdle){
   currentUser = null;
+  notifBaselineSet = null;
   clearSession();
   document.getElementById('dashboardRoot').style.display = 'none';
   document.getElementById('currentUserBadge').style.display = 'none';
   document.getElementById('btnLogout').style.display = 'none';
+  document.getElementById('notifWrap').style.display = 'none';
+  document.getElementById('notifPanel').classList.remove('show');
   document.body.classList.remove('is-admin');
   document.body.classList.remove('delete-mode');
   document.getElementById('loginUsername').value = '';
@@ -1197,6 +1262,171 @@ function levelTag(tier){
   if(tier === 'cam') return '<span class="level-tag level-cam">NKAM</span>';
   return '<span class="level-tag level-sir">Sales Director</span>';
 }
+
+// ---- Notification sound (generated in-browser, no external audio file needed) ----
+let audioCtx = null;
+function playNotifSound(){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    [880, 1320].forEach((freq, i)=>{
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const start = now + i * 0.14;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.22, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.3);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(start);
+      osc.stop(start + 0.32);
+    });
+  }catch(e){ console.warn('Notification sound failed', e); }
+}
+
+// ---- Notification bell (per-CFA-user, step-by-step request tracking) ----
+// A notification stays "unread" for a CFA user until they click that specific
+// card once — there is no bulk "mark all read". Read-state is remembered per
+// browser (localStorage), scoped to the logged-in username.
+function notifReadKey(){
+  return 'creditDashboard_notifRead_' + (currentUser ? currentUser.username : 'anon');
+}
+function getNotifReadMap(){
+  try{
+    const raw = localStorage.getItem(notifReadKey());
+    return raw ? JSON.parse(raw) : {};
+  }catch(e){ return {}; }
+}
+function setNotifRead(requestId, signature){
+  try{
+    const map = getNotifReadMap();
+    map[requestId] = signature;
+    localStorage.setItem(notifReadKey(), JSON.stringify(map));
+  }catch(e){}
+}
+function notifSignature(r){
+  // Changes any time a new step happens on this request, which is what makes it unread again.
+  return [r.status, r.procDecidedAt || '', r.camApprovedAt || '', r.decidedAt || '', r.updatedAt || ''].join('|');
+}
+function notifHasProgress(r){
+  return true; // every request the CFA raised is trackable, starting from "Submitted"
+}
+function stepPill(label, tone){
+  // tone: 'done' (green) or 'pending' (red/amber)
+  return '<span class="notif-step ' + tone + '">' + (tone === 'done' ? '✓ ' : '⏳ ') + esc(label) + '</span>';
+}
+// Returns the SINGLE current-stage description for a request — not a list of every
+// step, just where things stand right now. As the request moves forward, the old
+// stage's badge is replaced by the new one instead of stacking up.
+function notifCurrentStep(r){
+  if(r.status === 'Processing-Rejected'){
+    return { label: 'Rejected by Processing Team', tone: 'pending', next: '' };
+  }
+  if(r.status === 'Rejected'){
+    const who = r.decidedByRole === 'sir' ? 'Sales Director' : r.decidedByRole === 'cam' ? 'NKAM' : 'Processing Team';
+    return { label: 'Rejected by ' + who, tone: 'pending', next: '' };
+  }
+  if(r.status === 'Updated'){
+    return { label: 'Final update done — completed', tone: 'done', next: '' };
+  }
+  if(r.status === 'Approved'){
+    const who = r.decidedByRole === 'sir' ? 'Sales Director' : 'NKAM';
+    return { label: 'Approved by ' + who, tone: 'done', next: 'Awaiting final update' };
+  }
+  if(r.status === 'Self-Update'){
+    return { label: 'Approved by Processing Team', tone: 'done', next: 'You can update this yourself now' };
+  }
+  if(r.status === 'Pending-Cam' && r.tier === 'sir'){
+    return { label: 'Approved by Processing Team', tone: 'done', next: 'Awaiting NKAM approval' };
+  }
+  if(r.status === 'Pending' && r.tier === 'sir' && r.camApprovedAt){
+    return { label: 'Approved by NKAM', tone: 'done', next: 'Sales Director approval required next' };
+  }
+  if(r.status === 'Pending' && r.tier === 'cam'){
+    return { label: 'Approved by Processing Team', tone: 'done', next: 'Awaiting NKAM approval' };
+  }
+  return { label: 'Submitted', tone: 'pending', next: 'Awaiting Processing Team approval' };
+}
+function notifStepsHtml(r){
+  const step = notifCurrentStep(r);
+  let html = stepPill(step.label, step.tone);
+  if(step.next) html += '<span class="notif-next">→ ' + esc(step.next) + '</span>';
+  return html;
+}
+function myNotifRequests(){
+  if(!currentUser || currentUser.role !== 'CFA') return [];
+  return requests.filter(r => r.postedByUsername === currentUser.username && notifHasProgress(r));
+}
+function unreadNotifRequests(){
+  const readMap = getNotifReadMap();
+  return myNotifRequests().filter(r => readMap[r.id] !== notifSignature(r));
+}
+function notifTimestamp(r){
+  return new Date(r.updatedAt || r.decidedAt || r.camApprovedAt || r.procDecidedAt || r.createdAt || 0).getTime();
+}
+let notifBaselineSet = null; // null = not initialised yet for this login session
+function renderNotifications(){
+  const wrap = document.getElementById('notifWrap');
+  if(!currentUser){
+    wrap.style.display = 'none';
+    document.getElementById('notifPanel').classList.remove('show');
+    return;
+  }
+  wrap.style.display = 'block';
+  const unread = unreadNotifRequests().sort((a,b)=> notifTimestamp(b) - notifTimestamp(a));
+  const currentIdSet = new Set(unread.map(r => r.id + '::' + notifSignature(r)));
+  if(notifBaselineSet === null){
+    // First render after login: just establish the baseline silently, don't ding for old backlog.
+    notifBaselineSet = currentIdSet;
+  } else {
+    let hasNew = false;
+    currentIdSet.forEach(key => { if(!notifBaselineSet.has(key)) hasNew = true; });
+    if(hasNew) playNotifSound();
+    notifBaselineSet = currentIdSet;
+  }
+  const badge = document.getElementById('notifBadge');
+  const bell = document.getElementById('btnNotifBell');
+  if(unread.length){
+    badge.style.display = 'flex';
+    badge.textContent = unread.length > 99 ? '99+' : String(unread.length);
+    bell.classList.add('has-unread');
+  } else {
+    badge.style.display = 'none';
+    bell.classList.remove('has-unread');
+  }
+  const list = document.getElementById('notifList');
+  list.innerHTML = '';
+  document.getElementById('notifEmpty').style.display = unread.length ? 'none' : 'block';
+  unread.forEach(r=>{
+    const div = document.createElement('div');
+    div.className = 'notif-item';
+    div.innerHTML =
+      '<div class="notif-item-top">' +
+        '<div class="notif-item-title">' + esc(r.custname || r.custcd || 'Request') + '</div>' +
+        '<div class="notif-item-amt">' + fmtMoney(r.reqamt) + '</div>' +
+      '</div>' +
+      '<div class="notif-date">' + fmtDate(notifTimestamp(r)) + '</div>' +
+      '<div class="notif-steps">' + notifStepsHtml(r) + '</div>' +
+      '<div class="notif-hint">Tap to dismiss</div>';
+    div.addEventListener('click', ()=>{
+      setNotifRead(r.id, notifSignature(r));
+      renderNotifications();
+    });
+    list.appendChild(div);
+  });
+}
+document.getElementById('btnNotifBell').addEventListener('click', (e)=>{
+  e.stopPropagation();
+  document.getElementById('notifPanel').classList.toggle('show');
+});
+document.addEventListener('click', (e)=>{
+  const wrap = document.getElementById('notifWrap');
+  if(wrap && !wrap.contains(e.target)){
+    document.getElementById('notifPanel').classList.remove('show');
+  }
+});
 
 function buildRequestObject(fields){
   const reqamt = fields.reqamt;
@@ -2009,6 +2239,7 @@ function renderAll(){
   renderProcTable();
   renderCamTable();
   renderSirTable();
+  renderNotifications();
 }
 
 document.getElementById('entryFilterStatus').addEventListener('change', renderEntryTable);
