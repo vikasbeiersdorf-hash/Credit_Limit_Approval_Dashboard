@@ -477,7 +477,7 @@
   </div>
 
   <div class="rules-strip">
-    <div class="rule-chip self"><b>Up to ₹2,00,000</b>Needs Processing Team approval, then you can update directly in the system.</div>
+    <div class="rule-chip self"><b>Up to ₹2,00,000</b>Needs Processing Team approval, then Admin updates it directly in the system.</div>
     <div class="rule-chip cam"><b>₹2,00,001 – ₹3,00,000</b>Needs Processing Team approval, then NKAM approval before updating.</div>
     <div class="rule-chip sir"><b>Above ₹3,00,000</b>Needs Processing Team approval, then NKAM approval, and only after NKAM approves does it go to the Sales Director for final approval.</div>
   </div>
@@ -569,7 +569,7 @@
           <option value="all">All status</option>
           <option value="Pending-Processing">Pending (Processing Team)</option>
           <option value="Processing-Rejected">Rejected by Processing Team</option>
-          <option value="Self-Update">Self-Update (not yet updated)</option>
+          <option value="Self-Update">Admin Update (not yet updated)</option>
           <option value="Pending-Cam">Pending (awaiting NKAM sign-off)</option>
           <option value="Pending">Pending (NKAM / Sales Director)</option>
           <option value="Approved">Approved (not yet updated)</option>
@@ -609,7 +609,7 @@
               <th>
                 <select class="col-filter" id="colf_level">
                   <option value="all">All</option>
-                  <option value="self">Self</option>
+                  <option value="self">Admin</option>
                   <option value="cam">NKAM</option>
                   <option value="sir">Sales Director</option>
                 </select>
@@ -1258,7 +1258,7 @@ function tierFor(amount){
   return 'sir';
 }
 function levelTag(tier){
-  if(tier === 'self') return '<span class="level-tag level-self">Self</span>';
+  if(tier === 'self') return '<span class="level-tag level-self">Admin</span>';
   if(tier === 'cam') return '<span class="level-tag level-cam">NKAM</span>';
   return '<span class="level-tag level-sir">Sales Director</span>';
 }
@@ -1336,7 +1336,7 @@ function notifCurrentStep(r){
     return { label: 'Approved by ' + who, tone: 'done', next: 'Awaiting final update' };
   }
   if(r.status === 'Self-Update'){
-    return { label: 'Approved by Processing Team', tone: 'done', next: 'You can update this yourself now' };
+    return { label: 'Approved by Processing Team', tone: 'done', next: 'Admin will update this in the system' };
   }
   if(r.status === 'Pending-Cam' && r.tier === 'sir'){
     return { label: 'Approved by Processing Team', tone: 'done', next: 'Awaiting NKAM approval' };
@@ -1350,14 +1350,53 @@ function notifCurrentStep(r){
   return { label: 'Submitted', tone: 'pending', next: 'Awaiting Processing Team approval' };
 }
 function notifStepsHtml(r){
-  const step = notifCurrentStep(r);
+  const step = notifContentFor(r, currentUser ? currentUser.role : 'CFA');
   let html = stepPill(step.label, step.tone);
   if(step.next) html += '<span class="notif-next">→ ' + esc(step.next) + '</span>';
   return html;
 }
+// What each role should be told about a request that concerns them right now.
+function notifContentFor(r, role){
+  if(role === 'processing'){
+    return { label: 'New request — needs Processing Team review', tone: 'pending', next: '' };
+  }
+  if(role === 'cam'){
+    return { label: 'Approved by Processing Team — needs NKAM review', tone: 'pending', next: '' };
+  }
+  if(role === 'sir'){
+    return { label: 'Approved by NKAM — needs Sales Director review', tone: 'pending', next: '' };
+  }
+  if(role === 'admin'){
+    const src = r.status === 'Self-Update' ? 'Processing Team' : (r.decidedByRole === 'sir' ? 'Sales Director' : 'NKAM');
+    return { label: 'Approved by ' + src + ' — ready for you to update', tone: 'pending', next: '' };
+  }
+  // default: CFA view — their own request's current stage
+  return notifCurrentStep(r);
+}
+// Each role only sees requests that are currently sitting in THEIR queue, waiting on them.
+// Once they act, the item naturally leaves this list (the filter below stops matching).
 function myNotifRequests(){
-  if(!currentUser || currentUser.role !== 'CFA') return [];
-  return requests.filter(r => r.postedByUsername === currentUser.username && notifHasProgress(r));
+  if(!currentUser) return [];
+  const role = currentUser.role;
+  if(role === 'CFA'){
+    return requests.filter(r => r.postedByUsername === currentUser.username && notifHasProgress(r));
+  }
+  if(role === 'processing'){
+    return requests.filter(r => r.status === 'Pending-Processing');
+  }
+  if(role === 'cam'){
+    return requests.filter(r =>
+      (r.status === 'Pending' && r.tier === 'cam' && !!r.procDecidedAt) ||
+      (r.status === 'Pending-Cam' && r.tier === 'sir' && !!r.procDecidedAt)
+    );
+  }
+  if(role === 'sir'){
+    return requests.filter(r => r.status === 'Pending' && r.tier === 'sir' && !!r.camApprovedAt);
+  }
+  if(role === 'admin'){
+    return requests.filter(r => r.status === 'Self-Update' || r.status === 'Approved');
+  }
+  return [];
 }
 function unreadNotifRequests(){
   const readMap = getNotifReadMap();
@@ -1507,11 +1546,11 @@ function updateTierPreview(){
   box.classList.remove('self','cam','sir');
   box.classList.add(tier);
   if(tier === 'self'){
-    box.textContent = '→ ' + fmtMoney(val) + ' needs Processing Team approval — then you can update directly in system, no NKAM / Sales Director approval needed.';
+    box.textContent = '→ ' + fmtMoney(val) + ' needs Processing Team approval — then Admin updates it directly in system, no NKAM / Sales Director approval needed.';
   } else if(tier === 'cam'){
-    box.textContent = '→ ' + fmtMoney(val) + ' needs Processing Team approval, then NKAM approval before you update the system.';
+    box.textContent = '→ ' + fmtMoney(val) + ' needs Processing Team approval, then NKAM approval before Admin updates the system.';
   } else {
-    box.textContent = '→ ' + fmtMoney(val) + ' needs Processing Team approval, then NKAM approval, then Sales Director\'s approval before you update the system.';
+    box.textContent = '→ ' + fmtMoney(val) + ' needs Processing Team approval, then NKAM approval, then Sales Director\'s approval before Admin updates the system.';
   }
 }
 document.getElementById('f_reqamt').addEventListener('input', updateTierPreview);
@@ -1554,7 +1593,9 @@ function statusPill(status){
     'Self-Update':'st-self',
     'Updated':'st-updated'
   };
-  return '<span class="status-pill ' + (map[status]||'st-self') + '">' + status + '</span>';
+  const labelMap = { 'Self-Update': 'Admin Update' };
+  const label = labelMap[status] || status;
+  return '<span class="status-pill ' + (map[status]||'st-self') + '">' + esc(label) + '</span>';
 }
 
 function esc(s){
